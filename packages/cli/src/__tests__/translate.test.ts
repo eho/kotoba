@@ -215,24 +215,26 @@ describe("kotoba translate", () => {
     expect(manifest).toMatchObject({
       name: "@edwinho/kotoba-cli",
       publishConfig: { access: "public" },
-      main: "src/index.ts",
-      types: "src/index.ts",
+      main: "dist/index.js",
+      types: "dist/index.d.ts",
       bin: {
-        kotoba: "src/index.ts",
+        kotoba: "dist/index.js",
       },
       exports: {
         ".": {
-          types: "./src/index.ts",
-          default: "./src/index.ts",
+          types: "./dist/index.d.ts",
+          default: "./dist/index.js",
         },
       },
       scripts: {
+        build:
+          "bun ../../scripts/clean-package-dist.ts . && bun build src/index.ts --outdir dist --target bun --format esm --external @edwinho/kotoba-core --external @edwinho/kotoba-gemini && tsc -p tsconfig.build.json",
         typecheck: "tsc --noEmit",
         test: "bun test",
       },
       dependencies: {
-        "@edwinho/kotoba-core": "workspace:*",
-        "@edwinho/kotoba-gemini": "workspace:*",
+        "@edwinho/kotoba-core": "^0.1.0",
+        "@edwinho/kotoba-gemini": "^0.1.0",
       },
     });
     expect(indexSource.split("\n")[0]).toBe("#!/usr/bin/env bun");

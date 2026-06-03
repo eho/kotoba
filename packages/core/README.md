@@ -13,18 +13,18 @@ and it does not call Gemini or hosted services.
 
 ## Install
 
-Inside this monorepo, depend on the workspace package:
+Inside this monorepo, depend on the package by version. Bun workspaces link the
+local package when the workspace version satisfies the range:
 
 ```json
 {
   "dependencies": {
-    "@edwinho/kotoba-core": "workspace:*"
+    "@edwinho/kotoba-core": "^0.1.0"
   }
 }
 ```
 
-For external consumers, the package is designed to be npm-ready once a release
-workflow publishes it:
+For external consumers:
 
 ```bash
 bun add @edwinho/kotoba-core
@@ -199,7 +199,8 @@ Run package-level checks from the repository root:
 ```bash
 bun run --cwd packages/core typecheck
 bun run --cwd packages/core test
+bun run --cwd packages/core build
 ```
 
-From the repository root, `bun run typecheck` and `bun run test` run all package
-checks.
+From the repository root, `bun run build`, `bun run typecheck`, and
+`bun run test` run all package checks.

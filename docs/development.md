@@ -23,6 +23,7 @@ scripts/           # repository checks
 Run all checks from the repository root:
 
 ```bash
+bun run build
 bun run check:boundaries
 bun run typecheck
 bun run test
@@ -42,14 +43,20 @@ bun run --cwd packages/cli test
 CLI help smoke test:
 
 ```bash
-bun packages/cli/src/index.ts translate --help
+bun packages/cli/dist/index.js translate --help
 ```
 
 Optional live Gemini smoke test:
 
 ```bash
-GEMINI_API_KEY=... bun packages/cli/src/index.ts translate "thanks for today" --to ja
+GEMINI_API_KEY=... bun packages/cli/dist/index.js translate "thanks for today" --to ja
 ```
+
+## Build Output
+
+Each package publishes generated ESM JavaScript and TypeScript declarations from
+`dist/`. Build artifacts are intentionally ignored by git and regenerated before
+release.
 
 ## Import Boundaries
 

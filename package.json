@@ -12,12 +12,13 @@
     "packages/*"
   ],
   "scripts": {
+    "build": "bun run --cwd packages/core build && bun run --cwd packages/gemini build && bun run --cwd packages/cli build",
     "check:boundaries": "bun scripts/check-import-boundaries.ts",
     "typecheck": "bun run --filter '*' typecheck",
     "test": "bun run --filter '*' test",
     "changeset": "changeset",
     "version-packages": "changeset version",
-    "release": "changeset publish"
+    "release": "bun run build && changeset publish"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.7",

@@ -21,6 +21,12 @@ declare const process: {
   };
 };
 
+declare global {
+  interface ImportMeta {
+    main: boolean;
+  }
+}
+
 if (import.meta.main) {
   const result = await runKotobaCli(process.argv.slice(2), {
     env: process.env,

@@ -71,3 +71,11 @@ console.log(korean.draft.enrichment?.korean);
 ```
 
 The default model is `gemini-2.5-flash-lite`. Pass `model` in the options object to override it for evaluation.
+
+## Development
+
+```bash
+bun run --cwd packages/gemini build
+bun run --cwd packages/gemini typecheck
+bun run --cwd packages/gemini test
+```

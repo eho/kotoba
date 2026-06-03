@@ -14,6 +14,8 @@ Each package should include:
 
 - `publishConfig.access = "public"`
 - repository metadata pointing to `https://github.com/eho/kotoba`
+- ESM JavaScript and TypeScript declarations under `dist/`
+- package `files` limited to `dist` and `README.md`
 - package-level `typecheck` and `test` scripts
 - README examples using `@edwinho/*` package names
 
@@ -23,16 +25,20 @@ Before publishing:
 
 ```bash
 bun install
+bun run build
 bun run check:boundaries
 bun run typecheck
 bun run test
-bun packages/cli/src/index.ts translate --help
+bun packages/cli/dist/index.js translate --help
+npm pack --dry-run --ignore-scripts --json --workspace @edwinho/kotoba-core
+npm pack --dry-run --ignore-scripts --json --workspace @edwinho/kotoba-gemini
+npm pack --dry-run --ignore-scripts --json --workspace @edwinho/kotoba-cli
 ```
 
 Use a live Gemini smoke test only with a safe test API key:
 
 ```bash
-GEMINI_API_KEY=... bun packages/cli/src/index.ts translate "thanks for today" --to ja
+GEMINI_API_KEY=... bun packages/cli/dist/index.js translate "thanks for today" --to ja
 ```
 
 ## Changesets Flow
@@ -56,13 +62,17 @@ Publish:
 bun run release
 ```
 
-The npm account or automation token must have permission to publish under `@edwinho`.
+`bun run release` builds all packages before running Changesets publish. The npm
+account or automation token must have permission to publish under `@edwinho`.
 
 ## Manual Publish Fallback
 
-If publishing manually, publish in dependency order:
+If publishing manually, build once from the repository root, then publish in
+dependency order:
 
 ```bash
+bun run build
+
 cd packages/core
 npm publish --access public
 

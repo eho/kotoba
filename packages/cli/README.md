@@ -49,6 +49,7 @@ shell history.
 ## Development
 
 ```bash
+bun run --cwd packages/cli build
 bun run --cwd packages/cli typecheck
 bun run --cwd packages/cli test
 ```

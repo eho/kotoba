@@ -4,6 +4,7 @@
   "description": "Gemini translation provider for Kotoba core translation drafts.",
   "author": "eho",
   "license": "MIT",
+  "type": "module",
   "homepage": "https://github.com/eho/kotoba",
   "repository": {
     "type": "git",
@@ -22,24 +23,25 @@
     "korean"
   ],
   "files": [
-    "src",
+    "dist",
     "README.md"
   ],
-  "main": "src/index.ts",
-  "types": "src/index.ts",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./src/index.ts",
-      "default": "./src/index.ts"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     }
   },
   "scripts": {
+    "build": "bun ../../scripts/clean-package-dist.ts . && bun build src/index.ts --outdir dist --target node --format esm --external @google/genai --external @edwinho/kotoba-core && tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
     "test": "bun test"
   },
   "dependencies": {
     "@google/genai": "^1.47.0",
-    "@edwinho/kotoba-core": "workspace:*"
+    "@edwinho/kotoba-core": "^0.1.0"
   },
   "devDependencies": {
     "typescript": "~6.0.3"
