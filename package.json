@@ -1,0 +1,26 @@
+{
+  "name": "kotoba",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TypeScript packages for language-learning translation workflows.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eho/kotoba.git"
+  },
+  "license": "MIT",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "check:boundaries": "bun scripts/check-import-boundaries.ts",
+    "typecheck": "bun run --filter '*' typecheck",
+    "test": "bun run --filter '*' test",
+    "changeset": "changeset",
+    "version-packages": "changeset version",
+    "release": "changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.7",
+    "typescript": "~6.0.3"
+  }
+}

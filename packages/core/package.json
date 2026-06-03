@@ -1,0 +1,45 @@
+{
+  "name": "@edwinho/kotoba-core",
+  "version": "0.1.0",
+  "description": "Framework-neutral language-learning data models, language profiles, and translation draft utilities.",
+  "author": "eho",
+  "license": "MIT",
+  "homepage": "https://github.com/eho/kotoba",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eho/kotoba.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/eho/kotoba/issues"
+  },
+  "keywords": [
+    "language-learning",
+    "translation",
+    "japanese",
+    "chinese",
+    "korean"
+  ],
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "typescript": "~6.0.3"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
