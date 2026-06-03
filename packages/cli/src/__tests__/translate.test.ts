@@ -58,9 +58,79 @@ function makeDraft(params: {
     romanization,
     translationText: "Thank you.",
     register: params.targetLanguage === "zh" ? null : "polite",
-    alternateForm: null,
+    alternateForm: params.targetLanguage === "ja" ? "ありがとうございます" : null,
     usage: "A common expression of thanks.",
-    enrichment: null,
+    enrichment:
+      params.targetLanguage === "ja"
+        ? {
+            literalTranslation: "thanks",
+            grammarBreakdown: {
+              confidence: "high",
+              tokens: [
+                {
+                  token: "ありがとう",
+                  partOfSpeech: "phrase",
+                  meaning: "thank you",
+                },
+              ],
+            },
+            naturalness: "common",
+            bestUsedWhen: "Thanking someone directly.",
+            avoidWhen: "Too casual for a formal apology.",
+            confusableAlternatives: ["おはよう"],
+            keywordTags: ["gratitude", "daily"],
+            proficiencyLevel: { framework: "jlpt", level: "N5" },
+            registerVariants: [
+              {
+                text: "ありがとうございます",
+                role: "polite",
+                register: "polite",
+                reading: "arigatou gozaimasu",
+                translationText: "Thank you.",
+                usageNote: "Safer with people you do not know well.",
+              },
+            ],
+            usageContrasts: [
+              {
+                text: "すみません",
+                kind: "meaning",
+                label: "Thanks vs apology",
+                meaning: "sorry or excuse me",
+                whenToUse: "Use when apologizing or getting attention.",
+                avoidWhen: "Avoid when you only want simple thanks.",
+                contrastNote: "Can imply apology more than gratitude.",
+              },
+            ],
+            examples: [
+              {
+                text: "今日はありがとう。",
+                reading: "kyou wa arigatou",
+                translationText: "Thanks for today.",
+                register: "casual",
+                note: "Adds a time reference.",
+              },
+            ],
+          }
+        : params.targetLanguage === "zh"
+          ? {
+              literalTranslation: "many thanks",
+              naturalness: "common",
+              bestUsedWhen: "Casual Cantonese thanks.",
+              cantoneseExamples: {
+                colloquial: "多謝你。",
+                formalWritten: "謝謝你。",
+              },
+            }
+          : {
+              literalTranslation: "thank you",
+              naturalness: "common",
+              korean: {
+                speechLevel: "polite",
+                registerLabel: "polite speech",
+                romanizationSystem: "revised_romanization",
+                note: "Use with strangers or in ordinary service settings.",
+              },
+            },
     studyTokens: [
       {
         id: `0:${targetText.length}:${targetText}`,
@@ -313,12 +383,34 @@ describe("kotoba translate", () => {
     const json = formatJson(draft);
     const markdown = formatMarkdown(draft);
     const pretty = formatPretty(draft, { color: false });
+    const koreanPretty = formatPretty(makeDraft({ targetLanguage: "ko" }), {
+      color: false,
+    });
 
     expect(JSON.parse(json)).toMatchObject({ targetText: "ありがとう" });
     expect(markdown).toContain("ありがとう");
     expect(pretty).toContain("ありがとう");
     expect(markdown).toContain("Thank you.");
     expect(pretty).toContain("Thank you.");
+    expect(markdown).toContain("## Learning notes");
+    expect(markdown).toContain("**Literal:** thanks");
+    expect(markdown).toContain("## Variants");
+    expect(markdown).toContain("ありがとうございます");
+    expect(markdown).toContain("## Contrasts");
+    expect(markdown).toContain("Thanks vs apology");
+    expect(markdown).toContain("## Examples");
+    expect(markdown).toContain("今日はありがとう。");
+    expect(markdown).toContain("## Don't mix");
+    expect(markdown).toContain("おはよう");
+    expect(pretty).toContain("Learning notes:");
+    expect(pretty).toContain("Literal: thanks");
+    expect(pretty).toContain("Variants:");
+    expect(pretty).toContain("ありがとうございます");
+    expect(pretty).toContain("Contrasts:");
+    expect(pretty).toContain("Examples:");
+    expect(pretty).toContain("Don't mix:");
+    expect(koreanPretty).toContain("polite speech / polite");
+    expect(koreanPretty).toContain("Korean note:");
   });
 
   it("omits ANSI color codes in pretty output when NO_COLOR is set", async () => {

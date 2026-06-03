@@ -32,6 +32,12 @@ echo "thanks" | GEMINI_API_KEY=... kotoba translate --to zh --variant cantonese-
 | `--api-key` | string | `GEMINI_API_KEY` | Prefer the environment variable so secrets do not enter shell history. |
 | `--model` | string | `KOTOBA_GEMINI_MODEL` or package default | Overrides the Gemini model for evaluation. |
 
+Human-readable `pretty` and `markdown` output includes enriched learning notes
+when Gemini returns them: literal glosses, grammar notes, naturalness,
+proficiency, study-token notes, variants, contrasts, examples, confusables, and
+language-specific Cantonese or Korean notes. Use `--format json` when you need
+the complete normalized `TranslationDraft` for another program.
+
 ## Environment
 
 - `GEMINI_API_KEY`: required unless `--api-key` is supplied.

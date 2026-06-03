@@ -56,11 +56,21 @@ kotoba translate "I am hungry" --to ja
 お腹が空きました。
 Reading: onaka ga sukimashita
 Meaning: I am hungry.
-Register: polite
+Notes: polite | common | JLPT N5
+
+Learning notes:
+- Use: A natural way to say you are hungry.
+- Literal: stomach became empty
+- Best for: Plain statements about feeling hungry.
+- Grammar (high): お腹: noun, stomach; が: particle, subject marker; 空きました: verb, became empty
 
 Study tokens:
-- お腹: stomach
-- 空きました: became empty; got hungry
+- お腹 (おなか): stomach [word]
+- が: subject marker [grammar]
+- 空きました (すきました): became empty; got hungry [word]
+
+Examples:
+- 昼ご飯の前にお腹が空きました。 (hirugohan no mae ni onaka ga sukimashita) - I got hungry before lunch.
 ```
 
 Simplified Chinese:
