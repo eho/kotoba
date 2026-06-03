@@ -14,7 +14,7 @@ data without adopting a full product stack.
   <img src="assets/kotoba-app-icon.png" alt="Kotoba app icon" width="72" />
 </a>
 
-The official [Kotoba mobile app](https://kotobah.edwinho.net) uses this package
+The official [Kotoba mobile app](https://kotoba.edwinho.net) uses this package
 model for its language-learning core. The app is available on the
 [App Store](https://apps.apple.com/app/id6761883207).
 
