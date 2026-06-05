@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 import type {
+  MetadataConfidence,
   SupportedLearningLanguage,
   TranslationDraft,
 } from "@edwinho/kotoba-core";
@@ -158,6 +159,53 @@ function makeDraft(params: {
   };
 }
 
+function makeJapaneseFormDraft(
+  confidence: MetadataConfidence | null = "high"
+): TranslationDraft<SupportedLearningLanguage> {
+  return {
+    ...makeDraft({ targetLanguage: "ja" }),
+    sourceText: "I drank tea",
+    targetText: "お茶を飲んだ",
+    readingSegments: [
+      { text: "お茶", reading: "ocha" },
+      { text: "を", reading: "o" },
+      { text: "飲んだ", reading: "nonda" },
+    ],
+    romanization: "ocha o nonda",
+    translationText: "I drank tea.",
+    studyTokens: [
+      {
+        id: "3:6:飲んだ",
+        surface: "飲んだ",
+        start: 3,
+        end: 6,
+        reading: "nonda",
+        audioText: "飲んだ",
+        kind: "word",
+        note: {
+          partOfSpeech: "verb",
+          meaning: "drank",
+          note: "Past form of 飲む.",
+        },
+        ...(confidence == null
+          ? {}
+          : {
+              metadata: {
+                language: "ja",
+                category: "morphology",
+                kind: "verb",
+                surface: "飲んだ",
+                lemma: "飲む",
+                verbClass: "godan-mu",
+                observedForm: "past",
+                confidence,
+              },
+            }),
+      },
+    ],
+  };
+}
+
 function createIo(options: {
   env?: Record<string, string | undefined>;
   stdin?: string;
@@ -276,6 +324,139 @@ describe("kotoba translate", () => {
       readingSystem: "hangul",
       completeness: "enriched",
     });
+  });
+
+  it("preserves study-token metadata in JSON without pre-rendered form tables", async () => {
+    const draft = makeJapaneseFormDraft();
+    translateWithKotobaGemini.mockResolvedValue({
+      draft,
+      provider: "gemini",
+      model: "test-model",
+      warnings: [],
+      canonicalTargetTextMismatch: null,
+    });
+    const { runKotobaCli } = await import("../index");
+
+    for (const args of [
+      ["translate", "I drank tea", "--to", "ja", "--format", "json"],
+      ["translate", "I drank tea", "--to", "ja", "--format", "json", "--forms"],
+    ]) {
+      const { io, stdout, stderr } = createIo();
+      const result = await runKotobaCli(args, io);
+      const parsed = JSON.parse(stdout.join(""));
+
+      expect(result.exitCode).toBe(0);
+      expect(stderr.join("")).toBe("");
+      expect(parsed.studyTokens[0].metadata).toEqual(
+        draft.studyTokens[0].metadata
+      );
+      expect(parsed.studyTokens[0]).not.toHaveProperty("forms");
+      expect(JSON.stringify(parsed)).not.toContain('"rows"');
+    }
+  });
+
+  it("renders generated Japanese form tables in pretty output when --forms is passed", async () => {
+    translateWithKotobaGemini.mockResolvedValueOnce({
+      draft: makeJapaneseFormDraft(),
+      provider: "gemini",
+      model: "test-model",
+      warnings: [],
+      canonicalTargetTextMismatch: null,
+    });
+    const { runKotobaCli } = await import("../index");
+    const { io, stdout, stderr } = createIo({
+      env: { GEMINI_API_KEY: "test-key", NO_COLOR: "1" },
+    });
+
+    const result = await runKotobaCli(
+      ["translate", "I drank tea", "--to", "ja", "--format", "pretty", "--forms"],
+      io
+    );
+    const output = stdout.join("");
+
+    expect(result.exitCode).toBe(0);
+    expect(stderr.join("")).toBe("");
+    expect(output).toContain("Forms - Godan verb: 飲む");
+    expect(output).toContain("Dictionary     飲む");
+    expect(output).toContain("Past           飲んだ (Seen here)");
+    expect(output).toContain("Potential      飲める");
+  });
+
+  it("renders generated Japanese form tables in markdown output when --forms is passed", async () => {
+    translateWithKotobaGemini.mockResolvedValueOnce({
+      draft: makeJapaneseFormDraft(),
+      provider: "gemini",
+      model: "test-model",
+      warnings: [],
+      canonicalTargetTextMismatch: null,
+    });
+    const { runKotobaCli } = await import("../index");
+    const { io, stdout, stderr } = createIo();
+
+    const result = await runKotobaCli(
+      ["translate", "I drank tea", "--to", "ja", "--format", "markdown", "--forms"],
+      io
+    );
+    const output = stdout.join("");
+
+    expect(result.exitCode).toBe(0);
+    expect(stderr.join("")).toBe("");
+    expect(output).toContain("### 飲んだ forms");
+    expect(output).toContain("Godan verb: 飲む");
+    expect(output).toContain("| Form | Value | Note |");
+    expect(output).toContain("| Past | 飲んだ | Seen here |");
+  });
+
+  it("omits generated form tables when --forms is omitted", async () => {
+    translateWithKotobaGemini.mockResolvedValueOnce({
+      draft: makeJapaneseFormDraft(),
+      provider: "gemini",
+      model: "test-model",
+      warnings: [],
+      canonicalTargetTextMismatch: null,
+    });
+    const { runKotobaCli } = await import("../index");
+    const { io, stdout, stderr } = createIo({
+      env: { GEMINI_API_KEY: "test-key", NO_COLOR: "1" },
+    });
+
+    const result = await runKotobaCli(
+      ["translate", "I drank tea", "--to", "ja", "--format", "pretty"],
+      io
+    );
+    const output = stdout.join("");
+
+    expect(result.exitCode).toBe(0);
+    expect(stderr.join("")).toBe("");
+    expect(output).toContain("飲んだ");
+    expect(output).not.toContain("Forms -");
+    expect(output).not.toContain("Potential");
+  });
+
+  it("omits form sections without error when metadata is missing or below threshold", async () => {
+    const { runKotobaCli } = await import("../index");
+
+    for (const confidence of [null, "medium"] as const) {
+      translateWithKotobaGemini.mockResolvedValueOnce({
+        draft: makeJapaneseFormDraft(confidence),
+        provider: "gemini",
+        model: "test-model",
+        warnings: [],
+        canonicalTargetTextMismatch: null,
+      });
+      const { io, stdout, stderr } = createIo({
+        env: { GEMINI_API_KEY: "test-key", NO_COLOR: "1" },
+      });
+
+      const result = await runKotobaCli(
+        ["translate", "I drank tea", "--to", "ja", "--format", "pretty", "--forms"],
+        io
+      );
+
+      expect(result.exitCode).toBe(0);
+      expect(stderr.join("")).toBe("");
+      expect(stdout.join("")).not.toContain("Forms -");
+    }
   });
 
   it("matches the package manifest contract and executable shebang", async () => {

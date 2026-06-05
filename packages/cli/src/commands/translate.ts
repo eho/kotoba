@@ -42,6 +42,7 @@ interface TranslateOptions {
   from: SourceMode;
   variant: ChineseLearningVariant | null;
   format: OutputFormat;
+  forms: boolean;
   apiKey: string | null;
   model: string | null;
 }
@@ -89,6 +90,7 @@ function translateUsage(): string {
     "                             cantonese-traditional",
     "  --format <format>        Output format (default: pretty).",
     "                           Supported formats: json, pretty, markdown",
+    "  --forms                  Render generated Japanese form tables in pretty/markdown output.",
     "  --api-key <key>          Gemini API key (overrides GEMINI_API_KEY env).",
     "  --model <model>          Gemini model override (default: gemini-2.5-flash-lite).",
     "  -h, --help               Show this help message.",
@@ -107,7 +109,7 @@ function translateUsage(): string {
 
 function usage(): string {
   return [
-    "Usage: kotoba translate [text] --to <ja|zh|ko> [--from en|auto] [--variant <variant>] [--format json|pretty|markdown]",
+    "Usage: kotoba translate [text] --to <ja|zh|ko> [--from en|auto] [--variant <variant>] [--format json|pretty|markdown] [--forms]",
     "",
     "Set GEMINI_API_KEY in the environment, or pass --api-key for one-off evaluation.",
   ].join("\n");
@@ -135,6 +137,7 @@ function parseTranslateArgs(argv: string[]): TranslateOptions {
     from: "auto",
     variant: null,
     format: "pretty",
+    forms: false,
     apiKey: null,
     model: null,
   };
@@ -147,6 +150,14 @@ function parseTranslateArgs(argv: string[]): TranslateOptions {
     }
 
     const { name, value: inlineValue } = parseFlagToken(token);
+    if (name === "--forms") {
+      if (inlineValue != null) {
+        throw new Error('Flag "--forms" does not accept a value.');
+      }
+      options.forms = true;
+      continue;
+    }
+
     if (!FLAG_NAMES_WITH_VALUES.has(name)) {
       throw new Error(`Unknown flag "${name}".`);
     }
@@ -273,17 +284,20 @@ async function readInputText(options: TranslateOptions, io: KotobaCliIO): Promis
 }
 
 function renderOutput(
-  format: OutputFormat,
+  options: TranslateOptions,
   result: Awaited<ReturnType<typeof translateWithKotobaGemini>>,
   env: Record<string, string | undefined>
 ): string {
-  switch (format) {
+  switch (options.format) {
     case "json":
       return formatJson(result.draft);
     case "markdown":
-      return formatMarkdown(result.draft);
+      return formatMarkdown(result.draft, { forms: options.forms });
     case "pretty":
-      return formatPretty(result.draft, { color: env.NO_COLOR == null });
+      return formatPretty(result.draft, {
+        color: env.NO_COLOR == null,
+        forms: options.forms,
+      });
   }
 }
 
@@ -364,7 +378,7 @@ export async function runKotobaCli(
       apiKey,
       model,
     });
-    writeLine(io.stdout, renderOutput(options.format, result, env));
+    writeLine(io.stdout, renderOutput(options, result, env));
     return { exitCode: 0 };
   } catch (error) {
     const exitCode = classifyProviderError(error);

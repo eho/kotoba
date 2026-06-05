@@ -1,10 +1,19 @@
-import type { SupportedLearningLanguage, TranslationDraft } from "@edwinho/kotoba-core";
+import {
+  generateJapaneseFormTable,
+  type JapaneseFormTable,
+  type SupportedLearningLanguage,
+  type TranslationDraft,
+} from "@edwinho/kotoba-core";
 import {
   buildLearningSummary,
   type LearningContrast,
   type LearningFragment,
   type LearningNote,
 } from "./learningSections";
+
+interface MarkdownFormatOptions {
+  forms?: boolean;
+}
 
 function optionalLine(label: string, value: string | null | undefined): string[] {
   return value == null || value.length === 0 ? [] : [`**${label}:** ${value}`];
@@ -61,9 +70,32 @@ function pushContrasts(lines: string[], contrasts: LearningContrast[]): void {
   }
 }
 
+function escapeTableCell(value: string): string {
+  return value.replace(/\|/g, "\\|").replace(/\s+/g, " ").trim();
+}
+
+function pushJapaneseFormTable(
+  lines: string[],
+  tokenSurface: string,
+  table: JapaneseFormTable
+): void {
+  lines.push("", `### ${tokenSurface} forms`, "", table.subtitle, "");
+  lines.push("| Form | Value | Note |");
+  lines.push("| --- | --- | --- |");
+  for (const row of table.rows) {
+    lines.push(
+      `| ${escapeTableCell(row.label)} | ${escapeTableCell(row.value)} | ${
+        row.note == null ? "" : escapeTableCell(row.note)
+      } |`
+    );
+  }
+}
+
 export function formatMarkdown(
-  draft: TranslationDraft<SupportedLearningLanguage>
+  draft: TranslationDraft<SupportedLearningLanguage>,
+  options: MarkdownFormatOptions = {}
 ): string {
+  const forms = options.forms === true;
   const summary = buildLearningSummary(draft);
   const lines = [
     `# ${summary.targetText}`,
@@ -80,12 +112,18 @@ export function formatMarkdown(
 
   if (summary.studyTokens.length > 0) {
     lines.push("", "## Study tokens");
-    for (const token of summary.studyTokens) {
+    for (const [index, token] of summary.studyTokens.entries()) {
       const reading = token.reading == null ? "" : ` (${token.reading})`;
       const note = token.note == null ? "" : ` - ${token.note}`;
       lines.push(
         `- ${token.surface}${reading}: ${token.meaning} [${token.kind}]${note}`
       );
+      const table = forms
+        ? generateJapaneseFormTable(draft.studyTokens[index]?.metadata)
+        : null;
+      if (table != null) {
+        pushJapaneseFormTable(lines, token.surface, table);
+      }
     }
   }
 
