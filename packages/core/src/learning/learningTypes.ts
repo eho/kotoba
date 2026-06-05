@@ -258,6 +258,65 @@ export interface StudyTokenNote {
   note?: string | null;
 }
 
+export type StudyTokenMetadata = JapaneseStudyTokenMetadata;
+
+export type JapaneseStudyTokenMetadata =
+  | JapaneseVerbMorphologyMetadata
+  | JapaneseAdjectiveMorphologyMetadata;
+
+export type MetadataConfidence = "high" | "medium" | "low";
+
+export type JapaneseObservedForm =
+  | "dictionary"
+  | "plain"
+  | "polite"
+  | "negative"
+  | "past"
+  | "past-negative"
+  | "te-form"
+  | "potential"
+  | "before-noun"
+  | "adverbial"
+  | "conditional"
+  | "unknown";
+
+export type JapaneseVerbClass =
+  | "ichidan"
+  | "godan-u"
+  | "godan-ku"
+  | "godan-gu"
+  | "godan-su"
+  | "godan-tsu"
+  | "godan-nu"
+  | "godan-bu"
+  | "godan-mu"
+  | "godan-ru"
+  | "suru"
+  | "kuru"
+  | "irregular";
+
+export interface JapaneseVerbMorphologyMetadata {
+  language: "ja";
+  category: "morphology";
+  kind: "verb";
+  surface: string;
+  lemma: string;
+  verbClass: JapaneseVerbClass;
+  observedForm?: JapaneseObservedForm | null;
+  confidence: MetadataConfidence;
+}
+
+export interface JapaneseAdjectiveMorphologyMetadata {
+  language: "ja";
+  category: "morphology";
+  kind: "adjective";
+  surface: string;
+  lemma: string;
+  adjectiveClass: "i" | "na";
+  observedForm?: JapaneseObservedForm | null;
+  confidence: MetadataConfidence;
+}
+
 export interface StudyToken {
   id: string;
   surface: string;
@@ -267,6 +326,7 @@ export interface StudyToken {
   audioText: string;
   kind: StudyTokenKind;
   note: StudyTokenNote | null;
+  metadata?: StudyTokenMetadata | null;
 }
 
 /**
@@ -845,6 +905,126 @@ function sanitizeStudyTokenNote(value: unknown): StudyTokenNote | null | undefin
   };
 }
 
+const METADATA_CONFIDENCES: MetadataConfidence[] = ["high", "medium", "low"];
+const JAPANESE_OBSERVED_FORMS: JapaneseObservedForm[] = [
+  "dictionary",
+  "plain",
+  "polite",
+  "negative",
+  "past",
+  "past-negative",
+  "te-form",
+  "potential",
+  "before-noun",
+  "adverbial",
+  "conditional",
+  "unknown",
+];
+const JAPANESE_VERB_CLASSES: JapaneseVerbClass[] = [
+  "ichidan",
+  "godan-u",
+  "godan-ku",
+  "godan-gu",
+  "godan-su",
+  "godan-tsu",
+  "godan-nu",
+  "godan-bu",
+  "godan-mu",
+  "godan-ru",
+  "suru",
+  "kuru",
+  "irregular",
+];
+
+function isMetadataConfidence(value: unknown): value is MetadataConfidence {
+  return (
+    typeof value === "string" &&
+    METADATA_CONFIDENCES.includes(value as MetadataConfidence)
+  );
+}
+
+function isJapaneseObservedForm(value: unknown): value is JapaneseObservedForm {
+  return (
+    typeof value === "string" &&
+    JAPANESE_OBSERVED_FORMS.includes(value as JapaneseObservedForm)
+  );
+}
+
+function isJapaneseVerbClass(value: unknown): value is JapaneseVerbClass {
+  return (
+    typeof value === "string" &&
+    JAPANESE_VERB_CLASSES.includes(value as JapaneseVerbClass)
+  );
+}
+
+function sanitizeJapaneseObservedForm(
+  value: unknown
+): JapaneseObservedForm | null | undefined {
+  if (value == null) {
+    return null;
+  }
+  return isJapaneseObservedForm(value) ? value : undefined;
+}
+
+function sanitizeStudyTokenMetadata(
+  value: unknown,
+  tokenSurface: string
+): StudyTokenMetadata | null | undefined {
+  if (value == null) {
+    return null;
+  }
+  if (!isRecord(value)) {
+    return undefined;
+  }
+  if (value.language !== "ja" || value.category !== "morphology") {
+    return undefined;
+  }
+
+  const metadataSurface = toOptionalString(value.surface);
+  const lemma = toOptionalString(value.lemma);
+  const observedForm = sanitizeJapaneseObservedForm(value.observedForm);
+  if (
+    metadataSurface == null ||
+    metadataSurface !== tokenSurface.trim() ||
+    lemma == null ||
+    observedForm === undefined ||
+    !isMetadataConfidence(value.confidence)
+  ) {
+    return undefined;
+  }
+
+  if (value.kind === "verb" && isJapaneseVerbClass(value.verbClass)) {
+    return {
+      language: "ja",
+      category: "morphology",
+      kind: "verb",
+      surface: metadataSurface,
+      lemma,
+      verbClass: value.verbClass,
+      observedForm,
+      confidence: value.confidence,
+    };
+  }
+
+  if (
+    value.kind === "adjective" &&
+    (value.adjectiveClass === "i" || value.adjectiveClass === "na")
+  ) {
+    return {
+      language: "ja",
+      category: "morphology",
+      kind: "adjective",
+      surface: metadataSurface,
+      lemma,
+      adjectiveClass: value.adjectiveClass,
+      observedForm,
+      confidence: value.confidence,
+    };
+  }
+
+  return undefined;
+}
+
 function normalizeComparableToken(value: string) {
   return value.replace(/[。、，,！!？?：:；;"'”“「」『』（）()\s]/g, "").trim();
 }
@@ -920,6 +1100,10 @@ export function sanitizeStudyTokens(
     const reading = toOptionalString(item.reading);
     const rawAudioText = toOptionalString(item.audioText);
     const note = sanitizeStudyTokenNote(item.note);
+    const hasMetadata = Object.prototype.hasOwnProperty.call(item, "metadata");
+    const metadata = hasMetadata
+      ? sanitizeStudyTokenMetadata(item.metadata, surface ?? "")
+      : undefined;
 
     if (
       !Number.isInteger(start) ||
@@ -932,6 +1116,10 @@ export function sanitizeStudyTokens(
     ) {
       droppedSections.push(`studyTokens:${index}`);
       return [];
+    }
+
+    if (hasMetadata && metadata === undefined) {
+      droppedSections.push(`studyTokens[${index}].metadata`);
     }
 
     if (start < 0 || end <= start || end > targetText.length) {
@@ -974,6 +1162,7 @@ export function sanitizeStudyTokens(
         audioText,
         kind,
         note,
+        ...(metadata !== undefined ? { metadata } : {}),
       },
     ];
   });

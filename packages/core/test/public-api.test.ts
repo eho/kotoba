@@ -1,5 +1,10 @@
 import { describe, expect, it } from "bun:test";
 import * as core from "../src";
+import type {
+  JapaneseFormTable,
+  JapaneseFormTableRow,
+  StudyTokenMetadata,
+} from "../src";
 
 const expectedRuntimeExports = [
   "CATEGORY_LABELS",
@@ -22,6 +27,7 @@ const expectedRuntimeExports = [
   "getLanguageProfile",
   "getPhraseFragmentUsageContrastNotes",
   "getTranslationCacheStaleReason",
+  "generateJapaneseFormTable",
   "hasStudyTokenNoteContent",
   "inferTranslationCompleteness",
   "isCategory",
@@ -76,6 +82,29 @@ describe("public API", () => {
   it("keeps the public-friendly language resolver compatible with the existing helper", () => {
     expect(core.resolveLanguageProfile("ja")).toBe(core.getLanguageProfile("ja"));
     expect(core.resolveLanguageProfile("zh")).toBe(core.getLanguageProfile("zh"));
+  });
+
+  it("exports Japanese morphology metadata and form-table contracts", () => {
+    const metadata = {
+      language: "ja",
+      category: "morphology",
+      kind: "adjective",
+      surface: "高かった",
+      lemma: "高い",
+      adjectiveClass: "i",
+      observedForm: "past",
+      confidence: "high",
+    } satisfies StudyTokenMetadata;
+
+    const table = core.generateJapaneseFormTable(metadata) satisfies JapaneseFormTable | null;
+    const rows = table?.rows satisfies JapaneseFormTableRow[] | undefined;
+
+    expect(rows?.find((row) => row.label === "Past")).toEqual({
+      label: "Past",
+      value: "高かった",
+      observed: true,
+      note: "Seen here",
+    });
   });
 
   it("keeps Japanese and Chinese profile behavior equivalent while adding capabilities", () => {
