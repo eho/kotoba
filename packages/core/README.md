@@ -68,6 +68,29 @@ note details. `normalizeTranslationDraft` derives completeness and capability
 metadata after reading support, Chinese metadata, and study tokens are
 normalized.
 
+Japanese study tokens can optionally carry trusted morphology metadata under
+`StudyToken.metadata`. Phase 1 supports Japanese verb and adjective metadata
+only:
+
+```ts
+import type { StudyTokenMetadata } from "@edwinho/kotoba-core";
+
+const metadata: StudyTokenMetadata = {
+  language: "ja",
+  category: "morphology",
+  kind: "verb",
+  surface: "飲んだ",
+  lemma: "飲む",
+  verbClass: "godan-mu",
+  observedForm: "past",
+  confidence: "high",
+};
+```
+
+`sanitizeStudyTokens` preserves valid metadata and drops only malformed
+metadata while keeping the token. Dropped metadata is reported through a
+metadata-specific path such as `studyTokens[0].metadata`.
+
 ## Package Boundary
 
 The public package set is intentionally split:
@@ -137,6 +160,39 @@ const ttsLocale = resolveTTSLocale(
 );
 
 console.log(profile.defaultScript, inputMode, ttsLocale);
+```
+
+Generate Japanese form tables from trusted metadata:
+
+```ts
+import { generateJapaneseFormTable } from "@edwinho/kotoba-core";
+
+const table = generateJapaneseFormTable({
+  language: "ja",
+  category: "morphology",
+  kind: "verb",
+  surface: "飲んだ",
+  lemma: "飲む",
+  verbClass: "godan-mu",
+  observedForm: "past",
+  confidence: "high",
+});
+
+console.log(table?.rows);
+// [
+//   { label: "Dictionary", value: "飲む" },
+//   { label: "Polite", value: "飲みます" },
+//   { label: "Negative", value: "飲まない" },
+//   { label: "Past", value: "飲んだ", observed: true, note: "Seen here" },
+//   ...
+// ]
+```
+
+By default, only high-confidence metadata generates a table. Medium-confidence
+metadata can be enabled explicitly:
+
+```ts
+generateJapaneseFormTable(metadata, { minConfidence: "medium" });
 ```
 
 Resolve Korean as a future-language fixture:

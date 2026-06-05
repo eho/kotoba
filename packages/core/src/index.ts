@@ -39,6 +39,12 @@ export {
   sanitizeStudyTokens,
   validateReadingSegments,
 } from "./learning/learningTypes";
+export { generateJapaneseFormTable } from "./learning/japaneseFormTables";
+export type {
+  JapaneseFormTable,
+  JapaneseFormTableOptions,
+  JapaneseFormTableRow,
+} from "./learning/japaneseFormTables";
 export type {
   ActiveLanguageContext,
   AlignedReadingSegment,
@@ -50,6 +56,11 @@ export type {
   EnrichmentData,
   GrammarToken,
   InputMode,
+  JapaneseAdjectiveMorphologyMetadata,
+  JapaneseObservedForm,
+  JapaneseStudyTokenMetadata,
+  JapaneseVerbClass,
+  JapaneseVerbMorphologyMetadata,
   KoreanEnrichmentMetadata,
   KoreanReadingSystem,
   LanguageChoice,
@@ -57,6 +68,7 @@ export type {
   LearningEntryDraft,
   LearningLanguage,
   LibraryScope,
+  MetadataConfidence,
   NaturalnessLabel,
   ProficiencyLevel,
   ReadingSegment,
@@ -67,6 +79,7 @@ export type {
   ScriptCode,
   SourceLanguage,
   StructuredExample,
+  StudyTokenMetadata,
   StudyToken,
   StudyTokenKind,
   StudyTokenNote,

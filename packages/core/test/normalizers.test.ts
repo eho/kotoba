@@ -6,6 +6,7 @@ import {
   sanitizeStudyTokens,
   validateReadingSegments,
 } from "../src";
+import { malformedStudyTokenMetadata } from "./fixtures/japaneseFormTables.fixtures";
 
 describe("core validators and normalizers", () => {
   it("drops malformed provider-like enrichment sections while preserving valid fields", () => {
@@ -101,6 +102,85 @@ describe("core validators and normalizers", () => {
       },
     ]);
     expect(result.droppedSections).toEqual(["studyTokens:1", "studyTokens:2"]);
+  });
+
+  it("preserves valid Japanese morphology metadata on sanitized study tokens", () => {
+    const result = sanitizeStudyTokens(
+      [
+        {
+          surface: "飲んだ",
+          start: 0,
+          end: 3,
+          reading: "のんだ",
+          audioText: "nonda",
+          kind: "word",
+          note: { partOfSpeech: "verb", meaning: "drank" },
+          metadata: {
+            language: "ja",
+            category: "morphology",
+            kind: "verb",
+            surface: "飲んだ",
+            lemma: "飲む",
+            verbClass: "godan-mu",
+            observedForm: "past",
+            confidence: "high",
+          },
+        },
+      ],
+      "飲んだ"
+    );
+
+    expect(result.droppedSections).toEqual([]);
+    expect(result.studyTokens).toEqual([
+      expect.objectContaining({
+        surface: "飲んだ",
+        audioText: "飲んだ",
+        metadata: {
+          language: "ja",
+          category: "morphology",
+          kind: "verb",
+          surface: "飲んだ",
+          lemma: "飲む",
+          verbClass: "godan-mu",
+          observedForm: "past",
+          confidence: "high",
+        },
+      }),
+    ]);
+  });
+
+  it("drops malformed study token metadata without dropping the token", () => {
+    const result = sanitizeStudyTokens(
+      [
+        {
+          surface: "食べた",
+          start: 0,
+          end: 3,
+          reading: "たべた",
+          audioText: "tabeta",
+          kind: "word",
+          note: { partOfSpeech: "verb", meaning: "ate" },
+          metadata: malformedStudyTokenMetadata,
+        },
+      ],
+      "食べた"
+    );
+
+    expect(result.studyTokens).toEqual([
+      expect.not.objectContaining({
+        metadata: expect.anything(),
+      }),
+    ]);
+    expect(result.studyTokens[0]).toMatchObject({
+      surface: "食べた",
+      audioText: "食べた",
+      note: {
+        partOfSpeech: "verb",
+        meaning: "ate",
+        note: null,
+      },
+    });
+    expect(result.droppedSections).toEqual(["studyTokens[0].metadata"]);
   });
 
   it("normalizes translation drafts after dropping invalid reading and study-token sections", () => {
