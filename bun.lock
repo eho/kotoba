@@ -11,13 +11,13 @@
     },
     "packages/cli": {
       "name": "@edwinho/kotoba-cli",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "bin": {
-        "kotoba": "src/index.ts",
+        "kotoba": "dist/index.js",
       },
       "dependencies": {
-        "@edwinho/kotoba-core": "workspace:*",
-        "@edwinho/kotoba-gemini": "workspace:*",
+        "@edwinho/kotoba-core": "^0.2.0",
+        "@edwinho/kotoba-gemini": "^0.2.0",
       },
       "devDependencies": {
         "typescript": "~6.0.3",
@@ -25,16 +25,16 @@
     },
     "packages/core": {
       "name": "@edwinho/kotoba-core",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "devDependencies": {
         "typescript": "~6.0.3",
       },
     },
     "packages/gemini": {
       "name": "@edwinho/kotoba-gemini",
-      "version": "0.1.0",
+      "version": "0.2.0",
       "dependencies": {
-        "@edwinho/kotoba-core": "workspace:*",
+        "@edwinho/kotoba-core": "^0.2.0",
         "@google/genai": "^1.47.0",
       },
       "devDependencies": {

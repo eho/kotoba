@@ -19,7 +19,7 @@ local package when the workspace version satisfies the range:
 ```json
 {
   "dependencies": {
-    "@edwinho/kotoba-core": "^0.1.0"
+    "@edwinho/kotoba-core": "^0.2.0"
   }
 }
 ```
@@ -31,6 +31,10 @@ bun add @edwinho/kotoba-core
 ```
 
 ## Concepts
+
+Version `0.2.0` includes optional Japanese study-token metadata, the
+`StudyTokenMetadata` contract, and the `generateJapaneseFormTable()` helper for
+rendering deterministic verb and adjective form tables from trusted metadata.
 
 `TranslationDraft` is the normalized shape returned by translation providers
 before a phrase is saved. It carries source and target text, optional reading
