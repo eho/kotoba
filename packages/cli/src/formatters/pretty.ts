@@ -1,4 +1,9 @@
-import type { SupportedLearningLanguage, TranslationDraft } from "@edwinho/kotoba-core";
+import {
+  generateJapaneseFormTable,
+  type JapaneseFormTable,
+  type SupportedLearningLanguage,
+  type TranslationDraft,
+} from "@edwinho/kotoba-core";
 import {
   buildLearningSummary,
   type LearningContrast,
@@ -8,6 +13,7 @@ import {
 
 interface PrettyFormatOptions {
   color?: boolean;
+  forms?: boolean;
 }
 
 const ANSI = {
@@ -89,11 +95,21 @@ function pushContrasts(
   }
 }
 
+function pushJapaneseFormTable(lines: string[], table: JapaneseFormTable): void {
+  lines.push(`  Forms - ${table.subtitle}`);
+  const labelWidth = Math.max(...table.rows.map((row) => row.label.length));
+  for (const row of table.rows) {
+    const note = row.note == null ? "" : ` (${row.note})`;
+    lines.push(`  ${row.label.padEnd(labelWidth)}  ${row.value}${note}`);
+  }
+}
+
 export function formatPretty(
   draft: TranslationDraft<SupportedLearningLanguage>,
   options: PrettyFormatOptions = {}
 ): string {
   const color = options.color !== false;
+  const forms = options.forms === true;
   const summary = buildLearningSummary(draft);
   const lines = [
     style(summary.targetText, ANSI.bold, color),
@@ -110,12 +126,18 @@ export function formatPretty(
 
   if (summary.studyTokens.length > 0) {
     pushSection(lines, "Study tokens", color);
-    for (const token of summary.studyTokens) {
+    for (const [index, token] of summary.studyTokens.entries()) {
       const reading = token.reading == null ? "" : ` (${token.reading})`;
       const note = token.note == null ? "" : ` - ${token.note}`;
       lines.push(
         `- ${token.surface}${reading}: ${token.meaning} [${token.kind}]${note}`
       );
+      const table = forms
+        ? generateJapaneseFormTable(draft.studyTokens[index]?.metadata)
+        : null;
+      if (table != null) {
+        pushJapaneseFormTable(lines, table);
+      }
     }
   }
 
