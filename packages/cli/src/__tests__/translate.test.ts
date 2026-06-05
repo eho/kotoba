@@ -160,7 +160,7 @@ function makeDraft(params: {
 }
 
 function makeJapaneseFormDraft(
-  confidence: MetadataConfidence = "high"
+  confidence: MetadataConfidence | null = "high"
 ): TranslationDraft<SupportedLearningLanguage> {
   return {
     ...makeDraft({ targetLanguage: "ja" }),
@@ -187,16 +187,20 @@ function makeJapaneseFormDraft(
           meaning: "drank",
           note: "Past form of 飲む.",
         },
-        metadata: {
-          language: "ja",
-          category: "morphology",
-          kind: "verb",
-          surface: "飲んだ",
-          lemma: "飲む",
-          verbClass: "godan-mu",
-          observedForm: "past",
-          confidence,
-        },
+        ...(confidence == null
+          ? {}
+          : {
+              metadata: {
+                language: "ja",
+                category: "morphology",
+                kind: "verb",
+                surface: "飲んだ",
+                lemma: "飲む",
+                verbClass: "godan-mu",
+                observedForm: "past",
+                confidence,
+              },
+            }),
       },
     ],
   };
@@ -429,27 +433,30 @@ describe("kotoba translate", () => {
     expect(output).not.toContain("Potential");
   });
 
-  it("omits form sections without error when metadata is below the confidence threshold", async () => {
-    translateWithKotobaGemini.mockResolvedValueOnce({
-      draft: makeJapaneseFormDraft("medium"),
-      provider: "gemini",
-      model: "test-model",
-      warnings: [],
-      canonicalTargetTextMismatch: null,
-    });
+  it("omits form sections without error when metadata is missing or below threshold", async () => {
     const { runKotobaCli } = await import("../index");
-    const { io, stdout, stderr } = createIo({
-      env: { GEMINI_API_KEY: "test-key", NO_COLOR: "1" },
-    });
 
-    const result = await runKotobaCli(
-      ["translate", "I drank tea", "--to", "ja", "--format", "pretty", "--forms"],
-      io
-    );
+    for (const confidence of [null, "medium"] as const) {
+      translateWithKotobaGemini.mockResolvedValueOnce({
+        draft: makeJapaneseFormDraft(confidence),
+        provider: "gemini",
+        model: "test-model",
+        warnings: [],
+        canonicalTargetTextMismatch: null,
+      });
+      const { io, stdout, stderr } = createIo({
+        env: { GEMINI_API_KEY: "test-key", NO_COLOR: "1" },
+      });
 
-    expect(result.exitCode).toBe(0);
-    expect(stderr.join("")).toBe("");
-    expect(stdout.join("")).not.toContain("Forms -");
+      const result = await runKotobaCli(
+        ["translate", "I drank tea", "--to", "ja", "--format", "pretty", "--forms"],
+        io
+      );
+
+      expect(result.exitCode).toBe(0);
+      expect(stderr.join("")).toBe("");
+      expect(stdout.join("")).not.toContain("Forms -");
+    }
   });
 
   it("matches the package manifest contract and executable shebang", async () => {
