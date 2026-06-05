@@ -72,6 +72,31 @@ console.log(korean.draft.enrichment?.korean);
 
 The default model is `gemini-2.5-flash-lite`. Pass `model` in the options object to override it for evaluation.
 
+## Study Token Metadata
+
+Japanese `draft.studyTokens` may include optional `metadata` for confident verb
+and adjective tokens. The package asks Gemini for Phase 1 morphology metadata,
+validates it through `@edwinho/kotoba-core`, preserves valid metadata on the
+normalized draft, and drops malformed metadata with a warning while keeping the
+token itself.
+
+```ts
+const result = await translateWithKotobaGemini(
+  { inputText: "I drank tea", learningLanguage: "ja" },
+  { apiKey }
+);
+
+const verbMetadata = result.draft.studyTokens.find(
+  (token) => token.surface === "飲んだ"
+)?.metadata;
+```
+
+Only Japanese verb and adjective metadata is supported in this phase. Gemini
+does not return pre-rendered form tables; callers can pass validated metadata to
+`generateJapaneseFormTable()` from `@edwinho/kotoba-core` after JFORM-002B
+publishes package versions that include both the core metadata contract and this
+Gemini normalization update.
+
 ## Development
 
 ```bash

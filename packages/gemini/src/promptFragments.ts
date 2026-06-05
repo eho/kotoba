@@ -17,6 +17,21 @@ interface EnrichmentFieldGuidanceParams {
 export const JAPANESE_TOKEN_NOTE_GUIDANCE =
   "Japanese token notes should explain Japanese-specific form choices when present, including particles, です/ます, plain form, dictionary form, だ, omitted subjects, sentence endings, and common contractions.";
 
+const JAPANESE_VERB_CLASSES =
+  "ichidan, godan-u, godan-ku, godan-gu, godan-su, godan-tsu, godan-nu, godan-bu, godan-mu, godan-ru, suru, kuru, irregular";
+
+const JAPANESE_OBSERVED_FORMS =
+  "dictionary, plain, polite, negative, past, past-negative, te-form, potential, before-noun, adverbial, conditional, unknown";
+
+export const JAPANESE_STUDY_TOKEN_METADATA_GUIDANCE = [
+  "  - metadata is optional and Japanese-only; include it only for confident verb or adjective tokens, otherwise omit metadata or use null",
+  "  - do not add metadata to particles, counters, nouns, auxiliaries, grammar-only spans, phrases, Chinese, or Korean tokens",
+  '  - metadata.surface must exactly match the token surface, category must be "morphology", language must be "ja", and confidence must be "high" or "medium"; omit low-confidence morphology instead of guessing',
+  `  - verb metadata shape: { language: "ja", category: "morphology", kind: "verb", surface, lemma, verbClass, observedForm, confidence }; verbClass is one of ${JAPANESE_VERB_CLASSES}`,
+  `  - adjective metadata shape: { language: "ja", category: "morphology", kind: "adjective", surface, lemma, adjectiveClass, observedForm, confidence }; adjectiveClass is "i" or "na"`,
+  `  - observedForm is optional/null and must be one of ${JAPANESE_OBSERVED_FORMS}`,
+].join("\n");
+
 export const MANDARIN_STANDARD_STRUCTURED_GUIDANCE =
   "For Mandarin, use structured variants and contrasts when they teach useful politeness, naturalness, particles, aspect markers such as 了/过/着, result complements, classifiers, sentence patterns, simplified-vs-traditional script awareness, or near-synonym distinctions. Examples should use Mainland-standard Simplified Chinese when possible.";
 
@@ -90,6 +105,10 @@ export function buildStudyTokenGuidance({
     lines.push(
       "  - Korean token notes should explain useful form choices when present, including particles, verb endings, speech levels, honorifics, contractions, spacing, and near-synonyms"
     );
+  }
+
+  if (language === "ja") {
+    lines.push(JAPANESE_STUDY_TOKEN_METADATA_GUIDANCE);
   }
 
   return lines.join("\n");

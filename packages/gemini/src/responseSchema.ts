@@ -9,6 +9,65 @@ const readingSegmentSchema = {
   required: ["text", "reading"],
 } as const;
 
+const japaneseStudyTokenMetadataSchema = {
+  type: Type.OBJECT,
+  nullable: true,
+  properties: {
+    language: { type: Type.STRING, enum: ["ja"] },
+    category: { type: Type.STRING, enum: ["morphology"] },
+    kind: { type: Type.STRING, enum: ["verb", "adjective"] },
+    surface: { type: Type.STRING },
+    lemma: { type: Type.STRING },
+    verbClass: {
+      type: Type.STRING,
+      enum: [
+        "ichidan",
+        "godan-u",
+        "godan-ku",
+        "godan-gu",
+        "godan-su",
+        "godan-tsu",
+        "godan-nu",
+        "godan-bu",
+        "godan-mu",
+        "godan-ru",
+        "suru",
+        "kuru",
+        "irregular",
+      ],
+      nullable: true,
+    },
+    adjectiveClass: {
+      type: Type.STRING,
+      enum: ["i", "na"],
+      nullable: true,
+    },
+    observedForm: {
+      type: Type.STRING,
+      enum: [
+        "dictionary",
+        "plain",
+        "polite",
+        "negative",
+        "past",
+        "past-negative",
+        "te-form",
+        "potential",
+        "before-noun",
+        "adverbial",
+        "conditional",
+        "unknown",
+      ],
+      nullable: true,
+    },
+    confidence: {
+      type: Type.STRING,
+      enum: ["high", "medium", "low"],
+    },
+  },
+  required: ["language", "category", "kind", "surface", "lemma", "confidence"],
+} as const;
+
 export const RESPONSE_SCHEMA = {
   type: Type.OBJECT,
   properties: {
@@ -78,6 +137,7 @@ export const RESPONSE_SCHEMA = {
               note: { type: Type.STRING, nullable: true },
             },
           },
+          metadata: japaneseStudyTokenMetadataSchema,
         },
         required: [
           "id",
