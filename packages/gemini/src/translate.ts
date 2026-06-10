@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import type { GoogleGenAIOptions } from "@google/genai";
 
 import {
   buildFallbackStudyTokens,
@@ -29,10 +30,26 @@ import { RESPONSE_SCHEMA } from "./responseSchema";
 
 export const DEFAULT_KOTOBA_GEMINI_MODEL = "gemini-2.5-flash-lite";
 
-export interface KotobaGeminiClientOptions {
+export type KotobaGeminiProviderBackend = "developer_api" | "vertex_ai";
+
+export interface DeveloperApiGeminiClientOptions {
+  provider?: "developer_api";
   apiKey: string;
   model?: string;
 }
+
+export interface VertexAiGeminiClientOptions {
+  provider: "vertex_ai";
+  project: string;
+  location: string;
+  model?: string;
+  apiVersion?: string;
+  googleAuthOptions?: GoogleGenAIOptions["googleAuthOptions"];
+}
+
+export type KotobaGeminiClientOptions =
+  | DeveloperApiGeminiClientOptions
+  | VertexAiGeminiClientOptions;
 
 export interface EnrichedTranslationParams {
   inputText: string;
@@ -74,6 +91,7 @@ export interface TranslationProviderPayload {
 export interface EnrichedTranslationResult {
   draft: TranslationDraft<SupportedLearningLanguage>;
   provider: "gemini";
+  providerBackend?: KotobaGeminiProviderBackend;
   model: string;
   warnings: string[];
   canonicalTargetTextMismatch: {
@@ -82,12 +100,43 @@ export interface EnrichedTranslationResult {
   } | null;
 }
 
+function resolveProviderBackend(
+  options: KotobaGeminiClientOptions
+): KotobaGeminiProviderBackend {
+  return options.provider ?? "developer_api";
+}
+
 export function createKotobaGeminiClient(options: KotobaGeminiClientOptions): GoogleGenAI {
-  if (!options.apiKey || options.apiKey.trim().length === 0) {
-    throw new Error("Gemini API key is required. Pass apiKey or configure GEMINI_API_KEY in the caller.");
+  if (options.provider === "vertex_ai") {
+    const project = options.project.trim();
+    const location = options.location.trim();
+
+    if (project.length === 0) {
+      throw new Error("Google Cloud project is required for Vertex AI Gemini.");
+    }
+    if (location.length === 0) {
+      throw new Error("Google Cloud location is required for Vertex AI Gemini.");
+    }
+
+    const genAiOptions: GoogleGenAIOptions = {
+      vertexai: true,
+      project,
+      location,
+      apiVersion: options.apiVersion?.trim() || "v1",
+    };
+
+    if (options.googleAuthOptions != null) {
+      genAiOptions.googleAuthOptions = options.googleAuthOptions;
+    }
+
+    return new GoogleGenAI(genAiOptions);
   }
 
-  return new GoogleGenAI({ apiKey: options.apiKey });
+  if (!options.apiKey || options.apiKey.trim().length === 0) {
+    throw new Error("Gemini API key is required for the Gemini Developer API.");
+  }
+
+  return new GoogleGenAI({ vertexai: false, apiKey: options.apiKey });
 }
 
 function validatePayload(
@@ -533,6 +582,7 @@ export async function translateWithKotobaGemini(
           chineseVariant: effectiveChineseVariant,
         });
   const ai = createKotobaGeminiClient(options);
+  const providerBackend = resolveProviderBackend(options);
   const model = options.model ?? DEFAULT_KOTOBA_GEMINI_MODEL;
 
   const response = await ai.models.generateContent({
@@ -561,6 +611,7 @@ export async function translateWithKotobaGemini(
   return {
     draft: normalized.draft,
     provider: "gemini",
+    providerBackend,
     model,
     warnings: normalized.warnings,
     canonicalTargetTextMismatch: normalized.canonicalTargetTextMismatch,
