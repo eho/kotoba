@@ -7,9 +7,15 @@ parsing, warning metadata, and draft normalization. Callers own where the
 package runs, how API keys are stored, and any auth, quota, cache, persistence,
 or product policy around the request.
 
-## API Key
+## Provider Backends
 
-The package does not read environment variables directly. Resolve the API key in the caller and pass it explicitly:
+The package does not read environment variables directly. Resolve provider
+configuration in the caller and pass it explicitly.
+
+### Gemini Developer API
+
+The Developer API path is the default. Existing callers can keep passing only
+`apiKey`; `provider: "developer_api"` is optional.
 
 ```ts
 import { translateWithKotobaGemini } from "@edwinho/kotoba-gemini";
@@ -20,16 +26,67 @@ const result = await translateWithKotobaGemini(
     learningLanguage: "ja",
   },
   {
+    provider: "developer_api",
     apiKey: process.env.GEMINI_API_KEY ?? "",
   }
 );
 ```
 
-Callers may use `GEMINI_API_KEY`, a secret manager, or an explicit CLI flag. Missing keys throw a configuration error before any provider request is made.
+Callers may use `GEMINI_API_KEY`, a secret manager, or an explicit CLI flag.
+Missing keys throw a sanitized configuration error before any provider request
+is made.
+
+### Vertex AI
+
+Use Vertex AI when Gemini requests should be billed through a Google Cloud
+project. The package passes `vertexai: true`, `project`, `location`, and
+`apiVersion` to `@google/genai`; `apiVersion` defaults to `"v1"`.
+
+```ts
+import { translateWithKotobaGemini } from "@edwinho/kotoba-gemini";
+
+const result = await translateWithKotobaGemini(
+  {
+    inputText: "thanks for today",
+    learningLanguage: "ja",
+  },
+  {
+    provider: "vertex_ai",
+    project: process.env.GOOGLE_CLOUD_PROJECT ?? "",
+    location: process.env.GOOGLE_CLOUD_LOCATION ?? "global",
+  }
+);
+```
+
+Pass `googleAuthOptions` when the runtime needs explicit credentials. When no
+auth options are provided, `@google/genai` uses its normal runtime credential
+behavior.
+
+```ts
+import { createKotobaGeminiClient } from "@edwinho/kotoba-gemini";
+
+const client = createKotobaGeminiClient({
+  provider: "vertex_ai",
+  project: "kotoba-prod",
+  location: "global",
+  googleAuthOptions: {
+    credentials: {
+      client_email: serviceAccount.client_email,
+      private_key: serviceAccount.private_key,
+    },
+  },
+});
+```
+
+Missing Vertex `project` or `location` values throw sanitized configuration
+errors before any provider request is made. Successful translation results
+return `provider: "gemini"` and `providerBackend` as either `"developer_api"` or
+`"vertex_ai"` so callers can log the selected backend without changing the
+translation draft contract.
 
 ## Privacy
 
-Input text and draft context are sent to Gemini to generate enrichment. Do not pass secrets, credentials, or personal data that should not be processed by the provider. The package returns sanitized warnings and does not log API keys.
+Input text and draft context are sent to Gemini to generate enrichment. Do not pass secrets, credentials, or personal data that should not be processed by the provider. The package returns sanitized warnings and does not log API keys or Vertex credentials.
 
 When used by `@edwinho/kotoba-cli`, the CLI sends the user's input text directly
 to Gemini using the user's Gemini API key.

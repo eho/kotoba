@@ -485,7 +485,7 @@ describe("kotoba translate", () => {
       },
       dependencies: {
         "@edwinho/kotoba-core": "^0.2.0",
-        "@edwinho/kotoba-gemini": "^0.2.0",
+        "@edwinho/kotoba-gemini": "^0.3.0",
       },
     });
     expect(indexSource.split("\n")[0]).toBe("#!/usr/bin/env bun");

@@ -15,7 +15,7 @@ const mockGenerateContent = mock(async () => ({
   }),
 }));
 
-const mockGoogleGenAI = mock((options: { apiKey: string }) => ({
+const mockGoogleGenAI = mock((options: Record<string, unknown>) => ({
   options,
   models: {
     generateContent: mockGenerateContent,
@@ -38,6 +38,136 @@ describe("translateWithKotobaGemini", () => {
     mockGoogleGenAI.mockClear();
   });
 
+  it("constructs Developer API clients when provider is explicit or omitted", async () => {
+    const { createKotobaGeminiClient } = await import("../index");
+
+    createKotobaGeminiClient({ apiKey: "default-key" });
+    createKotobaGeminiClient({
+      provider: "developer_api",
+      apiKey: "explicit-key",
+    });
+
+    expect(mockGoogleGenAI).toHaveBeenNthCalledWith(1, {
+      vertexai: false,
+      apiKey: "default-key",
+    });
+    expect(mockGoogleGenAI).toHaveBeenNthCalledWith(2, {
+      vertexai: false,
+      apiKey: "explicit-key",
+    });
+  });
+
+  it("constructs Vertex AI clients with the v1 API by default", async () => {
+    const { createKotobaGeminiClient } = await import("../index");
+
+    createKotobaGeminiClient({
+      provider: "vertex_ai",
+      project: "kotoba-prod",
+      location: "global",
+    });
+
+    expect(mockGoogleGenAI).toHaveBeenCalledWith({
+      vertexai: true,
+      project: "kotoba-prod",
+      location: "global",
+      apiVersion: "v1",
+    });
+  });
+
+  it("passes Vertex AI API version and auth options when provided", async () => {
+    const { createKotobaGeminiClient } = await import("../index");
+    const googleAuthOptions = {
+      credentials: {
+        client_email: "service-account@example.com",
+        private_key: "secret-private-key",
+      },
+    };
+
+    createKotobaGeminiClient({
+      provider: "vertex_ai",
+      project: "kotoba-preview",
+      location: "us-central1",
+      apiVersion: "v1beta",
+      googleAuthOptions,
+    });
+
+    expect(mockGoogleGenAI).toHaveBeenCalledWith({
+      vertexai: true,
+      project: "kotoba-preview",
+      location: "us-central1",
+      apiVersion: "v1beta",
+      googleAuthOptions,
+    });
+  });
+
+  it("throws sanitized configuration errors without logging secrets", async () => {
+    const { createKotobaGeminiClient } = await import("../index");
+    const originalConsoleError = console.error;
+    const originalConsoleWarn = console.warn;
+    const consoleError = mock(() => undefined);
+    const consoleWarn = mock(() => undefined);
+    console.error = consoleError as unknown as typeof console.error;
+    console.warn = consoleWarn as unknown as typeof console.warn;
+
+    const expectSanitizedConfigError = (
+      constructClient: () => unknown,
+      expectedMessage: string
+    ) => {
+      try {
+        constructClient();
+        throw new Error("Expected configuration error");
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+        const message = (error as Error).message;
+        expect(message).toContain(expectedMessage);
+        expect(message).not.toContain("secret-private-key");
+        expect(message).not.toContain("service-account@example.com");
+      }
+    };
+
+    try {
+      expectSanitizedConfigError(
+        () =>
+          createKotobaGeminiClient({
+            provider: "developer_api",
+            apiKey: "",
+          }),
+        "Gemini API key is required for the Gemini Developer API."
+      );
+      expectSanitizedConfigError(
+        () =>
+          createKotobaGeminiClient({
+            provider: "vertex_ai",
+            project: " ",
+            location: "global",
+            googleAuthOptions: {
+              credentials: {
+                client_email: "service-account@example.com",
+                private_key: "secret-private-key",
+              },
+            },
+          }),
+        "Google Cloud project is required for Vertex AI Gemini."
+      );
+      expectSanitizedConfigError(
+        () =>
+          createKotobaGeminiClient({
+            provider: "vertex_ai",
+            project: "kotoba-prod",
+            location: "",
+          }),
+        "Google Cloud location is required for Vertex AI Gemini."
+      );
+    } finally {
+      console.error = originalConsoleError;
+      console.warn = originalConsoleWarn;
+    }
+
+    expect(mockGoogleGenAI).not.toHaveBeenCalled();
+    expect(consoleError).not.toHaveBeenCalled();
+    expect(consoleWarn).not.toHaveBeenCalled();
+  });
+
   it("throws a configuration error before provider calls when the API key is missing", async () => {
     const { translateWithKotobaGemini } = await import("../index");
 
@@ -46,7 +176,7 @@ describe("translateWithKotobaGemini", () => {
         { inputText: "Thank you", learningLanguage: "ja" },
         { apiKey: "" }
       )
-    ).rejects.toThrow("Gemini API key is required");
+    ).rejects.toThrow("Gemini API key is required for the Gemini Developer API.");
     expect(mockGenerateContent).not.toHaveBeenCalled();
   });
 
@@ -58,7 +188,10 @@ describe("translateWithKotobaGemini", () => {
       { apiKey: "test-key", model: "test-model" }
     );
 
-    expect(mockGoogleGenAI).toHaveBeenCalledWith({ apiKey: "test-key" });
+    expect(mockGoogleGenAI).toHaveBeenCalledWith({
+      vertexai: false,
+      apiKey: "test-key",
+    });
     expect(mockGenerateContent).toHaveBeenCalledWith(
       expect.objectContaining({
         model: "test-model",
@@ -68,6 +201,7 @@ describe("translateWithKotobaGemini", () => {
       })
     );
     expect(result.provider).toBe("gemini");
+    expect(result.providerBackend).toBe("developer_api");
     expect(result.model).toBe("test-model");
     expect(result.draft).toMatchObject({
       targetLanguage: "ja",
@@ -80,6 +214,50 @@ describe("translateWithKotobaGemini", () => {
       completeness: "enriched",
     });
     expect(result.draft.studyTokens.length).toBeGreaterThan(0);
+  });
+
+  it("uses the same generateContent request shape for Developer API and Vertex AI", async () => {
+    const { RESPONSE_SCHEMA, translateWithKotobaGemini } = await import("../index");
+    const params = { inputText: "Thank you", learningLanguage: "ja" } as const;
+
+    const developerResult = await translateWithKotobaGemini(params, {
+      provider: "developer_api",
+      apiKey: "developer-key",
+      model: "test-model",
+    });
+    const developerRequest = mockGenerateContent.mock.calls[0]?.[0];
+
+    mockGenerateContent.mockClear();
+    mockGoogleGenAI.mockClear();
+
+    const vertexResult = await translateWithKotobaGemini(params, {
+      provider: "vertex_ai",
+      project: "kotoba-prod",
+      location: "global",
+      model: "test-model",
+    });
+    const vertexRequest = mockGenerateContent.mock.calls[0]?.[0];
+
+    expect(mockGoogleGenAI).toHaveBeenCalledWith({
+      vertexai: true,
+      project: "kotoba-prod",
+      location: "global",
+      apiVersion: "v1",
+    });
+    expect(vertexRequest).toEqual(developerRequest);
+    expect(developerRequest).toEqual(
+      expect.objectContaining({
+        model: "test-model",
+        config: expect.objectContaining({
+          responseMimeType: "application/json",
+          responseJsonSchema: RESPONSE_SCHEMA,
+        }),
+      })
+    );
+    expect(developerResult.provider).toBe("gemini");
+    expect(developerResult.providerBackend).toBe("developer_api");
+    expect(vertexResult.provider).toBe("gemini");
+    expect(vertexResult.providerBackend).toBe("vertex_ai");
   });
 
   it("asks for optional Japanese study token metadata only in Japanese prompts", async () => {

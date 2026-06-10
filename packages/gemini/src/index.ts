@@ -4,12 +4,15 @@ export {
   translateWithKotobaGemini,
 } from "./translate";
 export type {
+  DeveloperApiGeminiClientOptions,
   EnrichOnDeviceDraftParams,
   EnrichedTranslationParams,
   EnrichedTranslationResult,
   KotobaGeminiClientOptions,
+  KotobaGeminiProviderBackend,
   TranslateWithKotobaGeminiParams,
   TranslationProviderPayload,
+  VertexAiGeminiClientOptions,
 } from "./translate";
 export {
   buildEnrichmentPrompt,

@@ -17,7 +17,7 @@
       },
       "dependencies": {
         "@edwinho/kotoba-core": "^0.2.0",
-        "@edwinho/kotoba-gemini": "^0.2.0",
+        "@edwinho/kotoba-gemini": "^0.3.0",
       },
       "devDependencies": {
         "typescript": "~6.0.3",
@@ -32,7 +32,7 @@
     },
     "packages/gemini": {
       "name": "@edwinho/kotoba-gemini",
-      "version": "0.2.0",
+      "version": "0.3.0",
       "dependencies": {
         "@edwinho/kotoba-core": "^0.2.0",
         "@google/genai": "^1.47.0",
