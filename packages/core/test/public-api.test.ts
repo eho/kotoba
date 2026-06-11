@@ -84,6 +84,19 @@ describe("public API", () => {
     expect(core.resolveLanguageProfile("zh")).toBe(core.getLanguageProfile("zh"));
   });
 
+  it("requires enrichment prompt version 3 for fresh cached translations", () => {
+    expect(core.CURRENT_ENRICHMENT_PROMPT_VERSION).toBe(3);
+    expect(
+      core.getTranslationCacheStaleReason(
+        {
+          translationSchemaVersion: core.CURRENT_TRANSLATION_SCHEMA_VERSION,
+          enrichmentPromptVersion: 2,
+        },
+        core.resolveTranslationVersionRequirement()
+      )
+    ).toBe("enrichment_prompt_version");
+  });
+
   it("exports Japanese morphology metadata and form-table contracts", () => {
     const metadata = {
       language: "ja",

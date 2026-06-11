@@ -100,6 +100,31 @@ export interface EnrichedTranslationResult {
   } | null;
 }
 
+const REQUIRED_ENRICHMENT_NATURALNESS_VALUES = new Set([
+  "common",
+  "neutral",
+  "bookish",
+  "rare",
+  "stiff",
+]);
+
+function isProviderPayloadRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function hasRequiredEnrichmentFields(value: unknown): boolean {
+  if (!isProviderPayloadRecord(value)) {
+    return false;
+  }
+
+  return (
+    typeof value.naturalness === "string" &&
+    REQUIRED_ENRICHMENT_NATURALNESS_VALUES.has(value.naturalness) &&
+    typeof value.bestUsedWhen === "string" &&
+    value.bestUsedWhen.trim().length > 0
+  );
+}
+
 function resolveProviderBackend(
   options: KotobaGeminiClientOptions
 ): KotobaGeminiProviderBackend {
@@ -159,6 +184,18 @@ function validatePayload(
     !validateReadingSegments(payload.readingSegments)
   ) {
     throw new Error("Provider payload has invalid readingSegments");
+  }
+
+  if (
+    payload.enrichment == null ||
+    typeof payload.enrichment !== "object" ||
+    Array.isArray(payload.enrichment)
+  ) {
+    throw new Error("Provider payload missing enrichment");
+  }
+
+  if (!hasRequiredEnrichmentFields(payload.enrichment)) {
+    throw new Error("Provider payload enrichment schema missing required fields");
   }
 
   if (payload.targetLanguage !== learningLanguage) {
@@ -589,8 +626,10 @@ export async function translateWithKotobaGemini(
     model,
     contents: prompt,
     config: {
+      maxOutputTokens: 8192,
       responseMimeType: "application/json",
-      responseJsonSchema: RESPONSE_SCHEMA,
+      responseSchema: RESPONSE_SCHEMA,
+      temperature: 0.2,
     },
   });
 

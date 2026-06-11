@@ -1,5 +1,23 @@
 import { beforeEach, describe, expect, it, mock } from "bun:test";
 
+const sampleEnrichment = {
+  literalTranslation: "Thank you very much",
+  grammarBreakdown: null,
+  characterBreakdown: null,
+  naturalness: "common",
+  bestUsedWhen: "Polite thanks in everyday service or social settings.",
+  avoidWhen: null,
+  confusableAlternatives: null,
+  exampleSentence: "ありがとうございます、助かりました。",
+  keywordTags: ["thanks", "polite"],
+  proficiencyLevel: { framework: "jlpt", level: "N5" },
+  cantoneseExamples: null,
+  korean: null,
+  registerVariants: null,
+  usageContrasts: null,
+  examples: null,
+};
+
 const mockGenerateContent = mock(async () => ({
   text: JSON.stringify({
     targetLanguage: "ja",
@@ -11,7 +29,7 @@ const mockGenerateContent = mock(async () => ({
     romanization: "arigatou gozaimasu",
     translationText: "Thank you",
     studyTokens: [],
-    enrichment: null,
+    enrichment: sampleEnrichment,
   }),
 }));
 
@@ -196,7 +214,9 @@ describe("translateWithKotobaGemini", () => {
       expect.objectContaining({
         model: "test-model",
         config: expect.objectContaining({
+          maxOutputTokens: 8192,
           responseMimeType: "application/json",
+          temperature: 0.2,
         }),
       })
     );
@@ -214,6 +234,56 @@ describe("translateWithKotobaGemini", () => {
       completeness: "enriched",
     });
     expect(result.draft.studyTokens.length).toBeGreaterThan(0);
+  });
+
+  it("rejects provider payloads that omit cloud enrichment", async () => {
+    mockGenerateContent.mockResolvedValueOnce({
+      text: JSON.stringify({
+        targetLanguage: "ja",
+        sourceLanguage: "en",
+        sourceText: "Thank you",
+        targetText: "ありがとうございます",
+        targetTextVariants: null,
+        readingSegments: [{ text: "ありがとうございます", reading: null }],
+        romanization: "arigatou gozaimasu",
+        translationText: "Thank you",
+        studyTokens: [],
+        enrichment: null,
+      }),
+    });
+    const { translateWithKotobaGemini } = await import("../index");
+
+    await expect(
+      translateWithKotobaGemini(
+        { inputText: "Thank you", learningLanguage: "ja" },
+        { apiKey: "test-key" }
+      )
+    ).rejects.toThrow("Provider payload missing enrichment");
+  });
+
+  it("rejects provider payloads that omit required cloud enrichment fields", async () => {
+    mockGenerateContent.mockResolvedValueOnce({
+      text: JSON.stringify({
+        targetLanguage: "ja",
+        sourceLanguage: "en",
+        sourceText: "Thank you",
+        targetText: "ありがとうございます",
+        targetTextVariants: null,
+        readingSegments: [{ text: "ありがとうございます", reading: null }],
+        romanization: "arigatou gozaimasu",
+        translationText: "Thank you",
+        studyTokens: [],
+        enrichment: {},
+      }),
+    });
+    const { translateWithKotobaGemini } = await import("../index");
+
+    await expect(
+      translateWithKotobaGemini(
+        { inputText: "Thank you", learningLanguage: "ja" },
+        { apiKey: "test-key" }
+      )
+    ).rejects.toThrow("Provider payload enrichment schema missing required fields");
   });
 
   it("uses the same generateContent request shape for Developer API and Vertex AI", async () => {
@@ -250,7 +320,7 @@ describe("translateWithKotobaGemini", () => {
         model: "test-model",
         config: expect.objectContaining({
           responseMimeType: "application/json",
-          responseJsonSchema: RESPONSE_SCHEMA,
+          responseSchema: RESPONSE_SCHEMA,
         }),
       })
     );
@@ -295,6 +365,31 @@ describe("translateWithKotobaGemini", () => {
     const studyTokenSchema = RESPONSE_SCHEMA.properties.studyTokens.items;
     const metadataSchema = studyTokenSchema.properties.metadata;
 
+    expect(RESPONSE_SCHEMA.required).toEqual(
+      expect.arrayContaining([
+        "targetLanguage",
+        "sourceLanguage",
+        "sourceText",
+        "targetText",
+        "readingSegments",
+        "romanization",
+        "translationText",
+        "register",
+        "alternateForm",
+        "usage",
+        "studyTokens",
+        "enrichment",
+      ])
+    );
+    expect(RESPONSE_SCHEMA.properties.enrichment.nullable).toBeUndefined();
+    expect(RESPONSE_SCHEMA.properties.enrichment.required).toEqual(
+      expect.arrayContaining([
+        "naturalness",
+        "bestUsedWhen",
+      ])
+    );
+    expect(RESPONSE_SCHEMA.properties.enrichment.properties.naturalness.nullable).toBeUndefined();
+    expect(RESPONSE_SCHEMA.properties.enrichment.properties.bestUsedWhen.nullable).toBeUndefined();
     expect(studyTokenSchema.required).not.toContain("metadata");
     expect(metadataSchema.nullable).toBe(true);
     expect(metadataSchema.properties.language.enum).toEqual(["ja"]);
@@ -351,7 +446,7 @@ describe("translateWithKotobaGemini", () => {
             },
           },
         ],
-        enrichment: null,
+        enrichment: sampleEnrichment,
       }),
     });
     const { translateWithKotobaGemini } = await import("../index");
@@ -416,7 +511,7 @@ describe("translateWithKotobaGemini", () => {
             },
           },
         ],
-        enrichment: null,
+        enrichment: sampleEnrichment,
       }),
     });
     const { translateWithKotobaGemini } = await import("../index");
@@ -465,6 +560,7 @@ describe("translateWithKotobaGemini", () => {
         ],
         enrichment: {
           naturalness: "common",
+          bestUsedWhen: "Formal polite thanks in everyday Korean contexts.",
           proficiencyLevel: { framework: "topik", level: "1" },
           korean: {
             speechLevel: "formal",

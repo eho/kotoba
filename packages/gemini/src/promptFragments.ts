@@ -131,30 +131,30 @@ export function buildEnrichmentFieldGuidance({
         : "one short Japanese sentence only";
     const registerVariants =
       promptMode === "enrichment"
-        ? "optional array of natural Japanese variants for the preserved canonical phrase when useful; include primary, casual, polite, and formal variants only when they sound natural, never force variants for fixed expressions; each item is { text, role, register, reading, romanization, translationText, usageNote }"
-        : "optional array of natural Japanese variants when useful; include primary, casual, polite, and formal variants only when they sound natural, never force variants for fixed expressions; each item is { text, role, register, readingSegments, reading, romanization, translationText, usageNote }";
+        ? "optional array of up to 3 natural Japanese variants for the preserved canonical phrase when useful; include primary, casual, polite, and formal variants only when they sound natural, never force variants for fixed expressions; each item is { text, role, register, reading, romanization, translationText, usageNote }"
+        : "optional array of up to 3 natural Japanese variants when useful; include primary, casual, polite, and formal variants only when they sound natural, never force variants for fixed expressions; each item is { text, role, register, readingSegments, reading, romanization, translationText, usageNote }";
     const examples =
       promptMode === "enrichment"
-        ? "optional array of short Japanese examples for the preserved canonical phrase with English translationText and a note when they teach register or grammar; each item is { text, reading, romanization, translationText, register, note }"
-        : "optional array of short Japanese examples for the target phrase with English translationText and a note when they teach register or grammar; each item is { text, readingSegments, reading, romanization, translationText, register, note }";
+        ? "optional array of up to 2 short Japanese examples for the preserved canonical phrase with English translationText and a note when they teach register or grammar; each item is { text, reading, romanization, translationText, register, note }"
+        : "optional array of up to 2 short Japanese examples for the target phrase with English translationText and a note when they teach register or grammar; each item is { text, readingSegments, reading, romanization, translationText, register, note }";
     const usageContrastsItem =
       promptMode === "enrichment"
         ? "{ text, kind, label, register, reading, romanization, meaning, whenToUse, avoidWhen, contrastNote }"
         : "{ text, kind, label, register, readingSegments, reading, romanization, meaning, whenToUse, avoidWhen, contrastNote }";
 
-    return `- enrichment: optional object with:
+    return `- enrichment: object with nullable fields; include concrete learning notes in at least one of bestUsedWhen, avoidWhen, registerVariants, usageContrasts, examples, or exampleSentence when useful:
   - literalTranslation: concise literal gloss, or null
   - grammarBreakdown: null when confidence is low, otherwise { confidence: "high" | "medium", tokens: [{ token, partOfSpeech, meaning }] }${grammarAlignment}
-  - characterBreakdown: pedagogically useful kanji only; each item is { character, meaning, components }
+  - characterBreakdown: up to 4 pedagogically useful kanji only; each item is { character, meaning, components }
   - naturalness: "common", "neutral", "bookish", "rare", or "stiff"
-  - bestUsedWhen: short structured guidance, or null
+  - bestUsedWhen: short structured guidance
   - avoidWhen: short structured caution, or null
   - confusableAlternatives: short array of nearby target-language alternatives with no romanization, English labels, translations, explanations, or parenthetical notes, or null
   - exampleSentence: ${exampleSentence}; do not include romaji, pronunciation guides, English translations, glosses, labels, or parenthetical explanations, or null
   - registerVariants: ${registerVariants}
-  - usageContrasts: optional array explaining meaningful differences such as register, naturalness, particle omission, stiffness, and spoken/written usage; each item is ${usageContrastsItem}
+  - usageContrasts: optional array of up to 3 items explaining meaningful differences such as register, naturalness, particle omission, stiffness, and spoken/written usage; each item is ${usageContrastsItem}
   - examples: ${examples}
-  - keywordTags: short topical tags, or null
+  - keywordTags: up to 5 short topical tags, or null
   - proficiencyLevel: { framework: "jlpt", level: "N5" | "N4" | "N3" | "N2" | "N1" }, or null`;
   }
 
@@ -168,19 +168,19 @@ export function buildEnrichmentFieldGuidance({
         ? "one short Korean sentence only using the preserved phrase when helpful"
         : "one short Korean sentence only";
 
-    return `- enrichment: optional object with:
+    return `- enrichment: object with nullable fields; include concrete learning notes in at least one of bestUsedWhen, avoidWhen, registerVariants, usageContrasts, examples, or exampleSentence when useful:
   - literalTranslation: concise literal gloss, or null
   - grammarBreakdown: null when confidence is low, otherwise { confidence: "high" | "medium", tokens: [{ token, partOfSpeech, meaning }] }${grammarAlignment}
   - characterBreakdown: null for Korean unless there is a specific pedagogical reason
   - naturalness: "common", "neutral", "bookish", "rare", or "stiff"
-  - bestUsedWhen: short structured guidance, or null
+  - bestUsedWhen: short structured guidance
   - avoidWhen: short structured caution, or null
   - confusableAlternatives: short array of nearby Korean alternatives with no romanization, English labels, translations, explanations, or parenthetical notes, or null
   - exampleSentence: ${exampleSentence}; do not include romanization, pronunciation guides, English translations, glosses, labels, or parenthetical explanations, or null
-  - registerVariants: optional array for meaningful speech-level, honorific, casual, polite, formal, regional, or nearby Korean variants; each item is { text, role, register, readingSegments, reading, romanization, translationText, usageNote }
-  - usageContrasts: optional array for meaningful speech-level, honorific, particle, spacing, grammar, near-synonym, or naturalness distinctions; each item is { text, kind, label, register, readingSegments, reading, romanization, meaning, whenToUse, avoidWhen, contrastNote }
-  - examples: optional array for examples that clarify meaningful speech-level, honorific, grammar, near-synonym, or naturalness distinctions; each item is { text, readingSegments, reading, romanization, translationText, register, note }
-  - keywordTags: short topical tags, or null
+  - registerVariants: optional array of up to 3 items for meaningful speech-level, honorific, casual, polite, formal, regional, or nearby Korean variants; each item is { text, role, register, readingSegments, reading, romanization, translationText, usageNote }
+  - usageContrasts: optional array of up to 3 items for meaningful speech-level, honorific, particle, spacing, grammar, near-synonym, or naturalness distinctions; each item is { text, kind, label, register, readingSegments, reading, romanization, meaning, whenToUse, avoidWhen, contrastNote }
+  - examples: optional array of up to 2 examples that clarify meaningful speech-level, honorific, grammar, near-synonym, or naturalness distinctions; each item is { text, readingSegments, reading, romanization, translationText, register, note }
+  - keywordTags: up to 5 short topical tags, or null
   - proficiencyLevel: { framework: "topik", level: "1" | "2" | "3" | "4" | "5" | "6" }, or null
   - korean: optional object with { speechLevel, registerLabel, romanizationSystem, note } when it adds Korean-specific learning value`;
   }
@@ -200,18 +200,18 @@ export function buildEnrichmentFieldGuidance({
       ? `\n  - cantoneseExamples: ${isCantonese ? `{ colloquial: natural Cantonese phrasing, formalWritten: concise formal written Chinese equivalent }, target-language text only with no Jyutping, English translations, labels, or parenthetical explanations, or null` : "null"}`
       : "";
 
-  return `- enrichment: optional object with:
+  return `- enrichment: object with nullable fields; include concrete learning notes in at least one of bestUsedWhen, avoidWhen, registerVariants, usageContrasts, examples, or exampleSentence when useful:
   - literalTranslation: concise literal gloss, or null
   - grammarBreakdown: null when confidence is low, otherwise { confidence: "high" | "medium", tokens: [{ token, partOfSpeech, meaning }] }${grammarAlignment}
-  - characterBreakdown: pedagogically useful hanzi only; each item is { character, meaning, components }
+  - characterBreakdown: up to 4 pedagogically useful hanzi only; each item is { character, meaning, components }
   - naturalness: "common", "neutral", "bookish", "rare", or "stiff"
-  - bestUsedWhen: short structured guidance, or null
+  - bestUsedWhen: short structured guidance
   - avoidWhen: short structured caution, or null
   - confusableAlternatives: short array of nearby target-language alternatives with no romanization, English labels, translations, explanations, or parenthetical notes, or null
   - exampleSentence: ${exampleSentence}; do not include pinyin/Jyutping, pronunciation guides, English translations, glosses, labels, or parenthetical explanations, or null
-  - registerVariants: optional array for meaningful polite/formal, regional, script, grammar, or naturalness distinctions only; do not force word substitutions; each item is { text, role, register, readingSegments, reading, romanization, translationText, usageNote }
-  - usageContrasts: optional array for meaningful polite/formal, regional, script, grammar, near-synonym, Cantonese-vs-Mandarin, colloquial-vs-formal-written, or naturalness distinctions; each item is { text, kind, label, register, readingSegments, reading, romanization, meaning, whenToUse, avoidWhen, contrastNote }
-  - examples: optional array for examples that clarify meaningful register, regional, grammar, near-synonym, or naturalness distinctions; each item is { text, readingSegments, reading, romanization, translationText, register, note }
-  - keywordTags: short topical tags, or null
+  - registerVariants: optional array of up to 3 items for meaningful polite/formal, regional, script, grammar, or naturalness distinctions only; do not force word substitutions; each item is { text, role, register, readingSegments, reading, romanization, translationText, usageNote }
+  - usageContrasts: optional array of up to 3 items for meaningful polite/formal, regional, script, grammar, near-synonym, Cantonese-vs-Mandarin, colloquial-vs-formal-written, or naturalness distinctions; each item is { text, kind, label, register, readingSegments, reading, romanization, meaning, whenToUse, avoidWhen, contrastNote }
+  - examples: optional array of up to 2 examples that clarify meaningful register, regional, grammar, near-synonym, or naturalness distinctions; each item is { text, readingSegments, reading, romanization, translationText, register, note }
+  - keywordTags: up to 5 short topical tags, or null
   - proficiencyLevel: { framework: "hsk", level: "1" | "2" | "3" | "4" | "5" | "6" | "7-9" }, or null${cantoneseExamples}`;
 }

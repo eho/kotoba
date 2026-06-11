@@ -153,7 +153,8 @@ export const RESPONSE_SCHEMA = {
     },
     enrichment: {
       type: Type.OBJECT,
-      nullable: true,
+      description:
+        "Non-null learning enrichment object. Use null values for individual low-confidence subsections instead of returning enrichment itself as null.",
       properties: {
         literalTranslation: { type: Type.STRING, nullable: true },
         grammarBreakdown: {
@@ -197,10 +198,9 @@ export const RESPONSE_SCHEMA = {
         },
         naturalness: {
           type: Type.STRING,
-          nullable: true,
           enum: ["common", "neutral", "bookish", "rare", "stiff"],
         },
-        bestUsedWhen: { type: Type.STRING, nullable: true },
+        bestUsedWhen: { type: Type.STRING },
         avoidWhen: { type: Type.STRING, nullable: true },
         confusableAlternatives: {
           type: Type.ARRAY,
@@ -355,6 +355,7 @@ export const RESPONSE_SCHEMA = {
           },
         },
       },
+      required: ["naturalness", "bestUsedWhen"],
     },
   },
   required: [
@@ -363,6 +364,12 @@ export const RESPONSE_SCHEMA = {
     "sourceText",
     "targetText",
     "readingSegments",
+    "romanization",
     "translationText",
+    "register",
+    "alternateForm",
+    "usage",
+    "studyTokens",
+    "enrichment",
   ],
 } as const;
