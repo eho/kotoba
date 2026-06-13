@@ -270,6 +270,9 @@ export type JapaneseObservedForm =
   | "dictionary"
   | "plain"
   | "polite"
+  | "polite-negative"
+  | "polite-past"
+  | "polite-past-negative"
   | "negative"
   | "past"
   | "past-negative"
@@ -910,6 +913,9 @@ const JAPANESE_OBSERVED_FORMS: JapaneseObservedForm[] = [
   "dictionary",
   "plain",
   "polite",
+  "polite-negative",
+  "polite-past",
+  "polite-past-negative",
   "negative",
   "past",
   "past-negative",

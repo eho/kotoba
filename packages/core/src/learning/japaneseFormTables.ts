@@ -14,6 +14,25 @@ export interface JapaneseFormTableRow {
   observed?: boolean;
 }
 
+export type JapaneseFormTableCoreRowKey =
+  | "non-past"
+  | "negative"
+  | "past"
+  | "past-negative";
+
+export interface JapaneseFormTableCoreCell {
+  value: string;
+  note?: string | null;
+  observed?: boolean;
+}
+
+export interface JapaneseFormTableCoreRow {
+  key: JapaneseFormTableCoreRowKey;
+  label: string;
+  plain: JapaneseFormTableCoreCell;
+  polite: JapaneseFormTableCoreCell;
+}
+
 export interface JapaneseFormTable {
   language: "ja";
   category: "morphology";
@@ -22,6 +41,8 @@ export interface JapaneseFormTable {
   subtitle: string;
   confidence: MetadataConfidence;
   rows: JapaneseFormTableRow[];
+  coreRows: JapaneseFormTableCoreRow[];
+  otherRows: JapaneseFormTableRow[];
 }
 
 export interface JapaneseFormTableOptions {
@@ -32,8 +53,11 @@ interface VerbForms {
   dictionary: string;
   polite: string;
   negative: string;
+  politeNegative: string;
   past: string;
+  politePast: string;
   pastNegative: string;
+  politePastNegative: string;
   teForm: string;
   potential: string;
 }
@@ -42,16 +66,33 @@ interface IAdjectiveForms {
   plain: string;
   polite: string;
   negative: string;
+  politeNegative: string;
   past: string;
+  politePast: string;
   pastNegative: string;
+  politePastNegative: string;
   teForm: string;
   adverbial: string;
 }
 
 interface NaAdjectiveForms extends IAdjectiveForms {
   beforeNoun: string;
-  pastPolite: string;
 }
+
+type JapaneseFormTableObservedRow = JapaneseFormTableRow & {
+  observedForm?: JapaneseObservedForm;
+};
+
+type JapaneseFormTableObservedCell = JapaneseFormTableCoreCell & {
+  observedForm?: JapaneseObservedForm;
+};
+
+type JapaneseFormTableObservedCoreRow = {
+  key: JapaneseFormTableCoreRowKey;
+  label: string;
+  plain: JapaneseFormTableObservedCell;
+  polite: JapaneseFormTableObservedCell;
+};
 
 const VERB_CLASS_LABELS: Record<JapaneseVerbClass, string> = {
   ichidan: "Ichidan verb",
@@ -192,6 +233,64 @@ function generateVerbTable(
   if (forms == null) {
     return null;
   }
+  const rows = markObservedRows(
+    [
+      { label: "Dictionary", value: forms.dictionary, observedForm: "dictionary" },
+      { label: "Polite", value: forms.polite, observedForm: "polite" },
+      { label: "Negative", value: forms.negative, observedForm: "negative" },
+      { label: "Past", value: forms.past, observedForm: "past" },
+      {
+        label: "Past negative",
+        value: forms.pastNegative,
+        observedForm: "past-negative",
+      },
+      { label: "Te-form", value: forms.teForm, observedForm: "te-form" },
+      { label: "Potential", value: forms.potential, observedForm: "potential" },
+    ],
+    metadata.observedForm
+  );
+  const coreRows = markObservedCoreRows(
+    [
+      {
+        key: "non-past",
+        label: "Non-past",
+        plain: { value: forms.dictionary, observedForm: "dictionary" },
+        polite: { value: forms.polite, observedForm: "polite" },
+      },
+      {
+        key: "negative",
+        label: "Negative",
+        plain: { value: forms.negative, observedForm: "negative" },
+        polite: {
+          value: forms.politeNegative,
+          observedForm: "polite-negative",
+        },
+      },
+      {
+        key: "past",
+        label: "Past",
+        plain: { value: forms.past, observedForm: "past" },
+        polite: { value: forms.politePast, observedForm: "polite-past" },
+      },
+      {
+        key: "past-negative",
+        label: "Past negative",
+        plain: { value: forms.pastNegative, observedForm: "past-negative" },
+        polite: {
+          value: forms.politePastNegative,
+          observedForm: "polite-past-negative",
+        },
+      },
+    ],
+    metadata.observedForm
+  );
+  const otherRows = markObservedRows(
+    [
+      { label: "Te-form", value: forms.teForm, observedForm: "te-form" },
+      { label: "Potential", value: forms.potential, observedForm: "potential" },
+    ],
+    metadata.observedForm
+  );
 
   return {
     language: "ja",
@@ -200,22 +299,9 @@ function generateVerbTable(
     title: "Forms",
     subtitle: `${VERB_CLASS_LABELS[metadata.verbClass]}: ${metadata.lemma}`,
     confidence: metadata.confidence,
-    rows: markObservedRows(
-      [
-        { label: "Dictionary", value: forms.dictionary, observedForm: "dictionary" },
-        { label: "Polite", value: forms.polite, observedForm: "polite" },
-        { label: "Negative", value: forms.negative, observedForm: "negative" },
-        { label: "Past", value: forms.past, observedForm: "past" },
-        {
-          label: "Past negative",
-          value: forms.pastNegative,
-          observedForm: "past-negative",
-        },
-        { label: "Te-form", value: forms.teForm, observedForm: "te-form" },
-        { label: "Potential", value: forms.potential, observedForm: "potential" },
-      ],
-      metadata.observedForm
-    ),
+    rows,
+    coreRows,
+    otherRows,
   };
 }
 
@@ -227,8 +313,11 @@ function deriveVerbForms(
       dictionary: "ある",
       polite: "あります",
       negative: "ない",
+      politeNegative: "ありません",
       past: "あった",
+      politePast: "ありました",
       pastNegative: "なかった",
+      politePastNegative: "ありませんでした",
       teForm: "あって",
       potential: "あり得る",
     };
@@ -243,8 +332,11 @@ function deriveVerbForms(
       dictionary: metadata.lemma,
       polite: `${stem}ます`,
       negative: `${stem}ない`,
+      politeNegative: `${stem}ません`,
       past: `${stem}た`,
+      politePast: `${stem}ました`,
       pastNegative: `${stem}なかった`,
+      politePastNegative: `${stem}ませんでした`,
       teForm: `${stem}て`,
       potential: `${stem}られる`,
     };
@@ -259,8 +351,11 @@ function deriveVerbForms(
       dictionary: metadata.lemma,
       polite: `${prefix}します`,
       negative: `${prefix}しない`,
+      politeNegative: `${prefix}しません`,
       past: `${prefix}した`,
+      politePast: `${prefix}しました`,
       pastNegative: `${prefix}しなかった`,
+      politePastNegative: `${prefix}しませんでした`,
       teForm: `${prefix}して`,
       potential: `${prefix}できる`,
     };
@@ -275,8 +370,11 @@ function deriveVerbForms(
       dictionary: metadata.lemma,
       polite: `${prefix}来ます`,
       negative: `${prefix}来ない`,
+      politeNegative: `${prefix}来ません`,
       past: `${prefix}来た`,
+      politePast: `${prefix}来ました`,
       pastNegative: `${prefix}来なかった`,
+      politePastNegative: `${prefix}来ませんでした`,
       teForm: `${prefix}来て`,
       potential: `${prefix}来られる`,
     };
@@ -298,8 +396,11 @@ function deriveVerbForms(
     dictionary: metadata.lemma,
     polite: `${stem}${rule.iEnding}ます`,
     negative: `${stem}${rule.aEnding}ない`,
+    politeNegative: `${stem}${rule.iEnding}ません`,
     past,
+    politePast: `${stem}${rule.iEnding}ました`,
     pastNegative: `${stem}${rule.aEnding}なかった`,
+    politePastNegative: `${stem}${rule.iEnding}ませんでした`,
     teForm,
     potential: `${stem}${rule.eEnding}る`,
   };
@@ -317,7 +418,7 @@ function generateAdjectiveTable(
     metadata.adjectiveClass === "i"
       ? `i-adjective: ${metadata.lemma}`
       : `na-adjective: ${stripTrailingNa(metadata.lemma)}`;
-  const rows: Array<JapaneseFormTableRow & { observedForm?: JapaneseObservedForm }> =
+  const rows: JapaneseFormTableObservedRow[] =
     metadata.adjectiveClass === "i"
       ? [
           { label: "Plain", value: forms.plain, observedForm: "plain" },
@@ -343,12 +444,70 @@ function generateAdjectiveTable(
           { label: "Negative", value: forms.negative, observedForm: "negative" },
           { label: "Past", value: forms.past, observedForm: "past" },
           {
+            label: "Past negative",
+            value: forms.pastNegative,
+            observedForm: "past-negative",
+          },
+          {
             label: "Past polite",
-            value: (forms as NaAdjectiveForms).pastPolite,
+            value: forms.politePast,
+            observedForm: "polite-past",
           },
           { label: "Te-form", value: forms.teForm, observedForm: "te-form" },
           { label: "Adverbial", value: forms.adverbial, observedForm: "adverbial" },
         ];
+  const coreRows = markObservedCoreRows(
+    [
+      {
+        key: "non-past",
+        label: "Non-past",
+        plain: { value: forms.plain, observedForm: "plain" },
+        polite: { value: forms.polite, observedForm: "polite" },
+      },
+      {
+        key: "negative",
+        label: "Negative",
+        plain: { value: forms.negative, observedForm: "negative" },
+        polite: {
+          value: forms.politeNegative,
+          observedForm: "polite-negative",
+        },
+      },
+      {
+        key: "past",
+        label: "Past",
+        plain: { value: forms.past, observedForm: "past" },
+        polite: { value: forms.politePast, observedForm: "polite-past" },
+      },
+      {
+        key: "past-negative",
+        label: "Past negative",
+        plain: { value: forms.pastNegative, observedForm: "past-negative" },
+        polite: {
+          value: forms.politePastNegative,
+          observedForm: "polite-past-negative",
+        },
+      },
+    ],
+    metadata.observedForm
+  );
+  const otherRows = markObservedRows(
+    metadata.adjectiveClass === "i"
+      ? [
+          { label: "Te-form", value: forms.teForm, observedForm: "te-form" },
+          { label: "Adverbial", value: forms.adverbial, observedForm: "adverbial" },
+        ]
+      : [
+          {
+            label: "Before noun",
+            value: (forms as NaAdjectiveForms).beforeNoun,
+            observedForm: "before-noun",
+          },
+          { label: "Te-form", value: forms.teForm, observedForm: "te-form" },
+          { label: "Adverbial", value: forms.adverbial, observedForm: "adverbial" },
+        ],
+    metadata.observedForm
+  );
 
   return {
     language: "ja",
@@ -358,6 +517,8 @@ function generateAdjectiveTable(
     subtitle,
     confidence: metadata.confidence,
     rows: markObservedRows(rows, metadata.observedForm),
+    coreRows,
+    otherRows,
   };
 }
 
@@ -370,8 +531,11 @@ function deriveAdjectiveForms(
         plain: "いい",
         polite: "いいです",
         negative: "よくない",
+        politeNegative: "よくないです / よくありません",
         past: "よかった",
+        politePast: "よかったです",
         pastNegative: "よくなかった",
+        politePastNegative: "よくなかったです / よくありませんでした",
         teForm: "よくて",
         adverbial: "よく",
       };
@@ -384,8 +548,11 @@ function deriveAdjectiveForms(
       plain: metadata.lemma,
       polite: `${metadata.lemma}です`,
       negative: `${stem}くない`,
+      politeNegative: `${stem}くないです / ${stem}くありません`,
       past: `${stem}かった`,
+      politePast: `${stem}かったです`,
       pastNegative: `${stem}くなかった`,
+      politePastNegative: `${stem}くなかったです / ${stem}くありませんでした`,
       teForm: `${stem}くて`,
       adverbial: `${stem}く`,
     };
@@ -400,9 +567,11 @@ function deriveAdjectiveForms(
     polite: `${base}です`,
     beforeNoun: `${base}な`,
     negative: `${base}じゃない / ${base}ではない`,
+    politeNegative: `${base}じゃありません / ${base}ではありません`,
     past: `${base}だった`,
-    pastPolite: `${base}でした`,
+    politePast: `${base}でした`,
     pastNegative: `${base}じゃなかった`,
+    politePastNegative: `${base}じゃありませんでした / ${base}ではありませんでした`,
     teForm: `${base}で`,
     adverbial: `${base}に`,
   };
@@ -412,8 +581,36 @@ function stripTrailingNa(value: string): string {
   return value.endsWith("な") ? value.slice(0, -1) : value;
 }
 
+function markObservedCoreRows(
+  rows: JapaneseFormTableObservedCoreRow[],
+  observedForm: JapaneseObservedForm | null | undefined
+): JapaneseFormTableCoreRow[] {
+  return rows.map((row) => ({
+    key: row.key,
+    label: row.label,
+    plain: markObservedCoreCell(row.plain, observedForm),
+    polite: markObservedCoreCell(row.polite, observedForm),
+  }));
+}
+
+function markObservedCoreCell(
+  cell: JapaneseFormTableObservedCell,
+  observedForm: JapaneseObservedForm | null | undefined
+): JapaneseFormTableCoreCell {
+  const { observedForm: cellObservedForm, ...rest } = cell;
+  if (cellObservedForm === undefined || cellObservedForm !== observedForm) {
+    return rest;
+  }
+
+  return {
+    ...rest,
+    observed: true,
+    note: "Seen here",
+  };
+}
+
 function markObservedRows(
-  rows: Array<JapaneseFormTableRow & { observedForm?: JapaneseObservedForm }>,
+  rows: JapaneseFormTableObservedRow[],
   observedForm: JapaneseObservedForm | null | undefined
 ): JapaneseFormTableRow[] {
   return rows.map(({ observedForm: rowObservedForm, ...row }) => {

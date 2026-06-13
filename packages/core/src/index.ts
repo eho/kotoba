@@ -41,6 +41,9 @@ export {
 } from "./learning/learningTypes";
 export { generateJapaneseFormTable } from "./learning/japaneseFormTables";
 export type {
+  JapaneseFormTableCoreCell,
+  JapaneseFormTableCoreRow,
+  JapaneseFormTableCoreRowKey,
   JapaneseFormTable,
   JapaneseFormTableOptions,
   JapaneseFormTableRow,

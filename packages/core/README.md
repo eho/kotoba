@@ -182,13 +182,27 @@ const table = generateJapaneseFormTable({
   confidence: "high",
 });
 
-console.log(table?.rows);
+console.log(table?.coreRows);
 // [
-//   { label: "Dictionary", value: "飲む" },
-//   { label: "Polite", value: "飲みます" },
-//   { label: "Negative", value: "飲まない" },
-//   { label: "Past", value: "飲んだ", observed: true, note: "Seen here" },
+//   {
+//     key: "non-past",
+//     label: "Non-past",
+//     plain: { value: "飲む" },
+//     polite: { value: "飲みます" },
+//   },
+//   {
+//     key: "past",
+//     label: "Past",
+//     plain: { value: "飲んだ", observed: true, note: "Seen here" },
+//     polite: { value: "飲みました" },
+//   },
 //   ...
+// ]
+
+console.log(table?.otherRows);
+// [
+//   { label: "Te-form", value: "飲んで" },
+//   { label: "Potential", value: "飲める" },
 // ]
 ```
 
