@@ -5,6 +5,7 @@
 ### Patch Changes
 
 - Bump the enrichment prompt version, realign provider study-token spans when Japanese offsets are byte-like, infer observed form-table cells from metadata surfaces, and drop bogus morphology metadata from isolated copula tokens without dropping full adjective-copula surfaces.
+- Repair split Japanese adjective auxiliary sequences so forms like `静かでした`, `高くないです`, and `静かではなかった` can still generate and mark form-table metadata.
 
 ## 0.2.3
 

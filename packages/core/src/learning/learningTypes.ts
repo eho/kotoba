@@ -1034,6 +1034,18 @@ function sanitizeStudyTokenMetadata(
 const ISOLATED_JAPANESE_COPULA_SURFACES = new Set(["だ", "です", "だった", "でした"]);
 const JAPANESE_COPULA_LEMMAS = new Set(["だ", "です"]);
 
+interface JapaneseAdjectiveMetadataSeed {
+  adjectiveClass: "i" | "na";
+  lemma: string;
+  confidence: MetadataConfidence;
+}
+
+interface JapaneseAdjectiveAuxiliaryMatch {
+  surface: string;
+  observedForm: JapaneseObservedForm;
+  consumedIndexes: number[];
+}
+
 function isUnsupportedIsolatedJapaneseMetadata(
   metadata: StudyTokenMetadata | null | undefined,
   note: StudyTokenNote | null | undefined
@@ -1057,6 +1069,297 @@ function isUnsupportedIsolatedJapaneseMetadata(
     ISOLATED_JAPANESE_COPULA_SURFACES.has(surface) ||
     JAPANESE_COPULA_LEMMAS.has(lemma)
   );
+}
+
+function isJapaneseAdjectiveMetadata(
+  metadata: StudyTokenMetadata | null | undefined
+): metadata is JapaneseAdjectiveMorphologyMetadata {
+  return (
+    metadata != null &&
+    metadata.language === "ja" &&
+    metadata.category === "morphology" &&
+    metadata.kind === "adjective"
+  );
+}
+
+function isJapaneseAdjectivePartOfSpeech(
+  note: StudyTokenNote | null | undefined
+): boolean {
+  const partOfSpeech = note?.partOfSpeech?.trim().toLowerCase() ?? "";
+  return (
+    partOfSpeech.includes("adjective") ||
+    partOfSpeech.includes("形容詞") ||
+    partOfSpeech.includes("形容動詞")
+  );
+}
+
+function isJapaneseNaAdjectivePartOfSpeech(
+  note: StudyTokenNote | null | undefined
+): boolean {
+  const partOfSpeech = note?.partOfSpeech?.trim().toLowerCase() ?? "";
+  return (
+    partOfSpeech.includes("na-adjective") ||
+    partOfSpeech.includes("adjectival noun") ||
+    partOfSpeech.includes("形容動詞")
+  );
+}
+
+function stripTrailingJapaneseNa(value: string): string {
+  return value.endsWith("な") ? value.slice(0, -1) : value;
+}
+
+function inferIAdjectiveLemmaFromSurface(surface: string): string | null {
+  const pastNegativeSuffix = "くなかった";
+  const negativeSuffix = "くない";
+  const pastSuffix = "かった";
+
+  if (surface.endsWith(pastNegativeSuffix)) {
+    return `${surface.slice(0, surface.length - pastNegativeSuffix.length)}い`;
+  }
+  if (surface.endsWith(negativeSuffix)) {
+    return `${surface.slice(0, surface.length - negativeSuffix.length)}い`;
+  }
+  if (surface.endsWith(pastSuffix)) {
+    return `${surface.slice(0, surface.length - pastSuffix.length)}い`;
+  }
+  if (surface.endsWith("く")) {
+    return `${surface.slice(0, -1)}い`;
+  }
+  if (surface.endsWith("い")) {
+    return surface;
+  }
+  return null;
+}
+
+function inferJapaneseAdjectiveMetadataSeed(
+  token: StudyToken
+): JapaneseAdjectiveMetadataSeed | null {
+  if (isJapaneseAdjectiveMetadata(token.metadata)) {
+    return {
+      adjectiveClass: token.metadata.adjectiveClass,
+      lemma: token.metadata.lemma,
+      confidence: token.metadata.confidence,
+    };
+  }
+
+  if (!isJapaneseAdjectivePartOfSpeech(token.note)) {
+    return null;
+  }
+
+  if (isJapaneseNaAdjectivePartOfSpeech(token.note)) {
+    const lemma = stripTrailingJapaneseNa(token.surface.trim());
+    return lemma.length === 0
+      ? null
+      : { adjectiveClass: "na", lemma, confidence: "high" };
+  }
+
+  const lemma = inferIAdjectiveLemmaFromSurface(token.surface.trim());
+  return lemma == null || lemma.length === 0
+    ? null
+    : { adjectiveClass: "i", lemma, confidence: "high" };
+}
+
+function getIAdjectiveStem(lemma: string): string | null {
+  if (lemma === "いい") {
+    return "よ";
+  }
+  if (!lemma.endsWith("い")) {
+    return null;
+  }
+  return lemma.slice(0, -1);
+}
+
+function getJapaneseAdjectiveAuxiliaryPatterns(
+  tokenSurface: string,
+  seed: JapaneseAdjectiveMetadataSeed
+): Array<{ suffix: string; observedForm: JapaneseObservedForm }> {
+  if (seed.adjectiveClass === "na") {
+    const base = stripTrailingJapaneseNa(seed.lemma);
+    if (tokenSurface !== base) {
+      return [];
+    }
+    return [
+      { suffix: "じゃありませんでした", observedForm: "polite-past-negative" },
+      { suffix: "ではありませんでした", observedForm: "polite-past-negative" },
+      { suffix: "じゃなかった", observedForm: "past-negative" },
+      { suffix: "ではなかった", observedForm: "past-negative" },
+      { suffix: "じゃありません", observedForm: "polite-negative" },
+      { suffix: "ではありません", observedForm: "polite-negative" },
+      { suffix: "じゃない", observedForm: "negative" },
+      { suffix: "ではない", observedForm: "negative" },
+      { suffix: "でした", observedForm: "polite-past" },
+      { suffix: "だった", observedForm: "past" },
+      { suffix: "です", observedForm: "polite" },
+      { suffix: "で", observedForm: "te-form" },
+    ];
+  }
+
+  const stem = getIAdjectiveStem(seed.lemma);
+  if (stem == null) {
+    return [];
+  }
+
+  if (tokenSurface === seed.lemma) {
+    return [{ suffix: "です", observedForm: "polite" }];
+  }
+
+  if (tokenSurface === `${stem}かった`) {
+    return [{ suffix: "です", observedForm: "polite-past" }];
+  }
+
+  if (tokenSurface === `${stem}くなかった`) {
+    return [{ suffix: "です", observedForm: "polite-past-negative" }];
+  }
+
+  if (tokenSurface === `${stem}くない`) {
+    return [{ suffix: "です", observedForm: "polite-negative" }];
+  }
+
+  if (tokenSurface !== `${stem}く`) {
+    return [];
+  }
+
+  return [
+    { suffix: "ありませんでした", observedForm: "polite-past-negative" },
+    { suffix: "なかったです", observedForm: "polite-past-negative" },
+    { suffix: "ありません", observedForm: "polite-negative" },
+    { suffix: "ないです", observedForm: "polite-negative" },
+    { suffix: "なかった", observedForm: "past-negative" },
+    { suffix: "ない", observedForm: "negative" },
+  ];
+}
+
+function findContiguousSuffixTokenIndexes(
+  studyTokens: StudyToken[],
+  tokenIndex: number,
+  suffix: string
+): number[] | null {
+  let cursor = 0;
+  let expectedStart = studyTokens[tokenIndex]?.end;
+  const indexes: number[] = [];
+
+  for (let index = tokenIndex + 1; index < studyTokens.length; index += 1) {
+    const token = studyTokens[index];
+    if (expectedStart == null || token.start !== expectedStart) {
+      return null;
+    }
+    if (!suffix.startsWith(token.surface, cursor)) {
+      return null;
+    }
+
+    cursor += token.surface.length;
+    expectedStart = token.end;
+    indexes.push(index);
+
+    if (cursor === suffix.length) {
+      return indexes;
+    }
+  }
+
+  return null;
+}
+
+function findJapaneseAdjectiveAuxiliaryMatch(
+  studyTokens: StudyToken[],
+  tokenIndex: number
+): JapaneseAdjectiveAuxiliaryMatch | null {
+  const token = studyTokens[tokenIndex];
+  const seed = inferJapaneseAdjectiveMetadataSeed(token);
+  if (seed == null) {
+    return null;
+  }
+
+  const patterns = getJapaneseAdjectiveAuxiliaryPatterns(token.surface, seed).sort(
+    (left, right) => right.suffix.length - left.suffix.length
+  );
+
+  for (const pattern of patterns) {
+    const consumedIndexes = findContiguousSuffixTokenIndexes(
+      studyTokens,
+      tokenIndex,
+      pattern.suffix
+    );
+    if (consumedIndexes != null && consumedIndexes.length > 0) {
+      return {
+        surface: `${token.surface}${pattern.suffix}`,
+        observedForm: pattern.observedForm,
+        consumedIndexes,
+      };
+    }
+  }
+
+  return null;
+}
+
+function removeStudyTokenMetadata(token: StudyToken): StudyToken {
+  const { metadata: _metadata, ...rest } = token;
+  return {
+    ...rest,
+    kind: rest.kind === "word" ? "grammar" : rest.kind,
+  };
+}
+
+function repairSplitJapaneseAdjectiveMetadata(studyTokens: StudyToken[]): StudyToken[] {
+  const replacements = new Map<number, StudyToken>();
+  const consumedAuxiliaryIndexes = new Set<number>();
+
+  for (let index = 0; index < studyTokens.length; index += 1) {
+    if (consumedAuxiliaryIndexes.has(index)) {
+      continue;
+    }
+
+    const token = studyTokens[index];
+    const match = findJapaneseAdjectiveAuxiliaryMatch(studyTokens, index);
+    if (match == null) {
+      continue;
+    }
+
+    const existingMetadata = isJapaneseAdjectiveMetadata(token.metadata)
+      ? token.metadata
+      : null;
+    const seed = inferJapaneseAdjectiveMetadataSeed(token);
+    if (seed == null) {
+      continue;
+    }
+
+    const metadata: JapaneseAdjectiveMorphologyMetadata =
+      existingMetadata == null
+        ? {
+            language: "ja",
+            category: "morphology",
+            kind: "adjective",
+            surface: match.surface,
+            lemma: seed.lemma,
+            adjectiveClass: seed.adjectiveClass,
+            observedForm: match.observedForm,
+            confidence: seed.confidence,
+          }
+        : {
+            ...existingMetadata,
+            surface: match.surface,
+            observedForm: match.observedForm,
+          };
+
+    replacements.set(index, { ...token, metadata });
+    for (const consumedIndex of match.consumedIndexes) {
+      consumedAuxiliaryIndexes.add(consumedIndex);
+    }
+  }
+
+  if (replacements.size === 0 && consumedAuxiliaryIndexes.size === 0) {
+    return studyTokens;
+  }
+
+  return studyTokens.map((token, index) => {
+    const replacement = replacements.get(index);
+    if (replacement != null) {
+      return replacement;
+    }
+    if (consumedAuxiliaryIndexes.has(index)) {
+      return removeStudyTokenMetadata(token);
+    }
+    return token;
+  });
 }
 
 function normalizeComparableToken(value: string) {
@@ -1248,7 +1551,10 @@ export function sanitizeStudyTokens(
     ];
   });
 
-  return { studyTokens, droppedSections };
+  return {
+    studyTokens: repairSplitJapaneseAdjectiveMetadata(studyTokens),
+    droppedSections,
+  };
 }
 
 function createFallbackStudyToken(params: {

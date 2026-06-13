@@ -577,7 +577,7 @@ function deriveAdjectiveForms(
     politeNegative: `${base}じゃありません / ${base}ではありません`,
     past: `${base}だった`,
     politePast: `${base}でした`,
-    pastNegative: `${base}じゃなかった`,
+    pastNegative: `${base}じゃなかった / ${base}ではなかった`,
     politePastNegative: `${base}じゃありませんでした / ${base}ではありませんでした`,
     teForm: `${base}で`,
     adverbial: `${base}に`,

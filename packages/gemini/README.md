@@ -127,7 +127,13 @@ const korean = await translateWithKotobaGemini(
 console.log(korean.draft.enrichment?.korean);
 ```
 
-The default model is `gemini-2.5-flash-lite`. Pass `model` in the options object to override it for evaluation.
+The default model is `gemini-2.5-flash-lite`. Pass `model` in the options
+object to override it for evaluation. In live morphology evaluation,
+`gemini-2.5-flash` produced cleaner Japanese adjective metadata and fewer JSON
+reliability issues than `gemini-2.5-flash-lite`, at higher latency/cost. Keep
+the default when cost and speed are the priority; consider `gemini-2.5-flash`
+for Japanese morphology-sensitive paths or as a fallback after repeated JSON or
+metadata-quality warnings.
 
 ## Study Token Metadata
 
@@ -141,6 +147,15 @@ non-morphology tokens, and low-confidence analysis. The package validates
 metadata through `@edwinho/kotoba-core`, preserves valid metadata on the
 normalized draft, and drops malformed metadata with a warning while keeping the
 token itself.
+
+Gemini responses are still treated as provider output, not ground truth. The
+provider layer retries malformed JSON once and can ask Gemini to repair missing
+verb/adjective metadata once. Core then applies deterministic validation and
+bounded Japanese morphology repairs. For example, if Gemini splits
+`高くないです` into `高く` + `ない` + `です`, core can repair the metadata to the
+full observed adjective form when the spans and adjective evidence are
+contiguous. If the provider does not return enough reliable evidence, callers
+should expect missing metadata rather than a guessed form table.
 
 ```ts
 const result = await translateWithKotobaGemini(
@@ -156,6 +171,11 @@ const verbMetadata = result.draft.studyTokens.find(
 Only Japanese verb and adjective metadata is supported in this phase. Gemini
 does not return pre-rendered form tables; callers can pass validated metadata to
 `generateJapaneseFormTable()` from `@edwinho/kotoba-core`.
+
+For learner-facing UI, treat form tables as AI-assisted grammar support. They
+are most reliable for common ichidan/godan verbs and common i-adjective and
+na-adjective forms. Retain provider warnings in logs so bad translations,
+unexpected tokenization, and repair failures can be audited.
 
 ## Development
 

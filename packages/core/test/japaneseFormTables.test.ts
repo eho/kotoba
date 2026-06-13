@@ -132,6 +132,25 @@ describe("generateJapaneseFormTable", () => {
     });
   });
 
+  it("marks na-adjective dewa past-negative cells from the surface when observedForm is unavailable", () => {
+    const table = generateJapaneseFormTable({
+      language: "ja",
+      category: "morphology",
+      kind: "adjective",
+      surface: "静かではなかった",
+      lemma: "静か",
+      adjectiveClass: "na",
+      observedForm: null,
+      confidence: "high",
+    });
+
+    expect(table?.coreRows.find((row) => row.key === "past-negative")?.plain).toEqual({
+      value: "静かじゃなかった / 静かではなかった",
+      observed: true,
+      note: "Seen here",
+    });
+  });
+
   it("generates a plain and polite core matrix for i-adjectives", () => {
     const table = generateJapaneseFormTable({
       language: "ja",
@@ -210,7 +229,7 @@ describe("generateJapaneseFormTable", () => {
       {
         key: "past-negative",
         label: "Past negative",
-        plain: { value: "静かじゃなかった" },
+        plain: { value: "静かじゃなかった / 静かではなかった" },
         polite: { value: "静かじゃありませんでした / 静かではありませんでした" },
       },
     ]);

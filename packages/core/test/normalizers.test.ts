@@ -289,6 +289,209 @@ describe("core validators and normalizers", () => {
     });
   });
 
+  it("repairs split na-adjective copula metadata onto the observed surface", () => {
+    const result = sanitizeStudyTokens(
+      [
+        {
+          surface: "静か",
+          start: 0,
+          end: 2,
+          reading: "しずか",
+          audioText: "shizuka",
+          kind: "word",
+          note: {
+            partOfSpeech: "na-adjective",
+            meaning: "quiet",
+          },
+          metadata: {
+            language: "ja",
+            category: "morphology",
+            kind: "adjective",
+            surface: "静か",
+            lemma: "静か",
+            adjectiveClass: "na",
+            observedForm: "plain",
+            confidence: "high",
+          },
+        },
+        {
+          surface: "でした",
+          start: 2,
+          end: 5,
+          reading: "でした",
+          audioText: "deshita",
+          kind: "grammar",
+          note: {
+            partOfSpeech: "copula",
+            meaning: "was",
+          },
+        },
+      ],
+      "静かでした"
+    );
+
+    expect(result.droppedSections).toEqual([]);
+    expect(result.studyTokens[0]).toMatchObject({
+      surface: "静か",
+      metadata: {
+        language: "ja",
+        category: "morphology",
+        kind: "adjective",
+        surface: "静かでした",
+        lemma: "静か",
+        adjectiveClass: "na",
+        observedForm: "polite-past",
+        confidence: "high",
+      },
+    });
+    expect(result.studyTokens[1]).not.toHaveProperty("metadata");
+  });
+
+  it("repairs split i-adjective negative metadata and suppresses auxiliary metadata", () => {
+    const result = sanitizeStudyTokens(
+      [
+        {
+          surface: "高く",
+          start: 0,
+          end: 2,
+          reading: "たかく",
+          audioText: "takaku",
+          kind: "word",
+          note: {
+            partOfSpeech: "i-adjective",
+            meaning: "expensive",
+          },
+          metadata: {
+            language: "ja",
+            category: "morphology",
+            kind: "adjective",
+            surface: "高く",
+            lemma: "高い",
+            adjectiveClass: "i",
+            observedForm: "adverbial",
+            confidence: "high",
+          },
+        },
+        {
+          surface: "ない",
+          start: 2,
+          end: 4,
+          reading: "ない",
+          audioText: "nai",
+          kind: "word",
+          note: {
+            partOfSpeech: "i-adjective",
+            meaning: "not",
+          },
+          metadata: {
+            language: "ja",
+            category: "morphology",
+            kind: "adjective",
+            surface: "ない",
+            lemma: "ない",
+            adjectiveClass: "i",
+            observedForm: "plain",
+            confidence: "high",
+          },
+        },
+        {
+          surface: "です",
+          start: 4,
+          end: 6,
+          reading: "です",
+          audioText: "desu",
+          kind: "grammar",
+          note: {
+            partOfSpeech: "copula",
+          },
+        },
+      ],
+      "高くないです"
+    );
+
+    expect(result.droppedSections).toEqual([]);
+    expect(result.studyTokens[0]).toMatchObject({
+      surface: "高く",
+      metadata: {
+        language: "ja",
+        category: "morphology",
+        kind: "adjective",
+        surface: "高くないです",
+        lemma: "高い",
+        adjectiveClass: "i",
+        observedForm: "polite-negative",
+        confidence: "high",
+      },
+    });
+    expect(result.studyTokens[1]).toMatchObject({
+      surface: "ない",
+      kind: "grammar",
+    });
+    expect(result.studyTokens[1]).not.toHaveProperty("metadata");
+  });
+
+  it("infers split na-adjective past-negative metadata from a na-adjective note", () => {
+    const result = sanitizeStudyTokens(
+      [
+        {
+          surface: "静か",
+          start: 0,
+          end: 2,
+          reading: "しずか",
+          audioText: "shizuka",
+          kind: "word",
+          note: {
+            partOfSpeech: "na-adjective",
+            meaning: "quiet",
+          },
+        },
+        {
+          surface: "では",
+          start: 2,
+          end: 4,
+          reading: "では",
+          audioText: "dewa",
+          kind: "grammar",
+          note: {
+            partOfSpeech: "particle",
+          },
+        },
+        {
+          surface: "なかった",
+          start: 4,
+          end: 8,
+          reading: "なかった",
+          audioText: "nakatta",
+          kind: "word",
+          note: {
+            partOfSpeech: "auxiliary",
+          },
+        },
+      ],
+      "静かではなかった"
+    );
+
+    expect(result.droppedSections).toEqual([]);
+    expect(result.studyTokens[0]).toMatchObject({
+      surface: "静か",
+      metadata: {
+        language: "ja",
+        category: "morphology",
+        kind: "adjective",
+        surface: "静かではなかった",
+        lemma: "静か",
+        adjectiveClass: "na",
+        observedForm: "past-negative",
+        confidence: "high",
+      },
+    });
+    expect(result.studyTokens[2]).toMatchObject({
+      surface: "なかった",
+      kind: "grammar",
+    });
+    expect(result.studyTokens[2]).not.toHaveProperty("metadata");
+  });
+
   it("drops morphology metadata attached to isolated Japanese copula tokens", () => {
     const result = sanitizeStudyTokens(
       [

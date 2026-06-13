@@ -95,6 +95,15 @@ const metadata: StudyTokenMetadata = {
 metadata while keeping the token. Dropped metadata is reported through a
 metadata-specific path such as `studyTokens[0].metadata`.
 
+The sanitizer also performs bounded Japanese morphology repair for common
+provider tokenization failures. For example, split adjective sequences such as
+`静か` + `でした`, `高く` + `ない` + `です`, and `静か` + `では` + `なかった`
+can be normalized into metadata surfaces like `静かでした`, `高くないです`,
+and `静かではなかった` so form tables can mark the observed cell. These repairs
+require contiguous target-text spans and adjective metadata or clear adjective
+part-of-speech notes; core does not guess arbitrary morphology from unrelated
+tokens.
+
 ## Package Boundary
 
 The public package set is intentionally split:
@@ -212,6 +221,12 @@ metadata can be enabled explicitly:
 ```ts
 generateJapaneseFormTable(metadata, { minConfidence: "medium" });
 ```
+
+Form tables are deterministic once metadata is accepted. They should be treated
+as grammar support generated from validated metadata, not as a standalone
+Japanese dictionary. Consumers should prefer high-confidence metadata for
+learner-facing surfaces and should hide or soften tables when metadata is
+missing, low-confidence, or unsupported.
 
 Resolve Korean as a future-language fixture:
 

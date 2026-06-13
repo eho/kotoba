@@ -380,7 +380,7 @@ function naAdjectiveRows(
       ["Before noun", `${base}な`],
       ["Negative", `${base}じゃない / ${base}ではない`],
       ["Past", `${base}だった`],
-      ["Past negative", `${base}じゃなかった`],
+      ["Past negative", `${base}じゃなかった / ${base}ではなかった`],
       ["Past polite", `${base}でした`],
       ["Te-form", `${base}で`],
       ["Adverbial", `${base}に`],
