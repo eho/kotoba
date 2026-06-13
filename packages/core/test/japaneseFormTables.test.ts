@@ -74,6 +74,64 @@ describe("generateJapaneseFormTable", () => {
     ]);
   });
 
+  it("marks the observed cell from the surface when observedForm is unavailable", () => {
+    const table = generateJapaneseFormTable({
+      language: "ja",
+      category: "morphology",
+      kind: "verb",
+      surface: "飲みませんでした",
+      lemma: "飲む",
+      verbClass: "godan-mu",
+      observedForm: null,
+      confidence: "high",
+    });
+
+    expect(table?.coreRows.find((row) => row.key === "past-negative")).toEqual({
+      key: "past-negative",
+      label: "Past negative",
+      plain: { value: "飲まなかった" },
+      polite: {
+        value: "飲みませんでした",
+        observed: true,
+        note: "Seen here",
+      },
+    });
+  });
+
+  it("marks polite adjective cells from the surface when observedForm is unavailable", () => {
+    const iAdjectiveTable = generateJapaneseFormTable({
+      language: "ja",
+      category: "morphology",
+      kind: "adjective",
+      surface: "高かったです",
+      lemma: "高い",
+      adjectiveClass: "i",
+      observedForm: null,
+      confidence: "high",
+    });
+    const naAdjectiveTable = generateJapaneseFormTable({
+      language: "ja",
+      category: "morphology",
+      kind: "adjective",
+      surface: "静かでした",
+      lemma: "静か",
+      adjectiveClass: "na",
+      observedForm: null,
+      confidence: "high",
+    });
+
+    expect(iAdjectiveTable?.coreRows.find((row) => row.key === "past")?.polite).toEqual({
+      value: "高かったです",
+      observed: true,
+      note: "Seen here",
+    });
+    expect(naAdjectiveTable?.coreRows.find((row) => row.key === "past")?.polite).toEqual({
+      value: "静かでした",
+      observed: true,
+      note: "Seen here",
+    });
+  });
+
   it("generates a plain and polite core matrix for i-adjectives", () => {
     const table = generateJapaneseFormTable({
       language: "ja",

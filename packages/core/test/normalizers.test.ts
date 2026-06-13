@@ -149,6 +149,67 @@ describe("core validators and normalizers", () => {
     ]);
   });
 
+  it("realigns study token spans when provider offsets are byte-like but surfaces are correct", () => {
+    const result = sanitizeStudyTokens(
+      [
+        {
+          surface: "駅",
+          start: 0,
+          end: 3,
+          reading: "えき",
+          audioText: "eki",
+          kind: "word",
+          note: { partOfSpeech: "noun" },
+        },
+        {
+          surface: "まで",
+          start: 3,
+          end: 6,
+          reading: null,
+          audioText: "made",
+          kind: "grammar",
+          note: { partOfSpeech: "particle" },
+        },
+        {
+          surface: "歩きます",
+          start: 6,
+          end: 12,
+          reading: "あるきます",
+          audioText: "arukimasu",
+          kind: "word",
+          note: { partOfSpeech: "verb" },
+          metadata: {
+            language: "ja",
+            category: "morphology",
+            kind: "verb",
+            surface: "歩きます",
+            lemma: "歩く",
+            verbClass: "godan-ku",
+            observedForm: "polite",
+            confidence: "high",
+          },
+        },
+      ],
+      "駅まで歩きます。"
+    );
+
+    expect(result.droppedSections).toEqual([]);
+    expect(result.studyTokens).toEqual([
+      expect.objectContaining({ surface: "駅", start: 0, end: 1 }),
+      expect.objectContaining({ surface: "まで", start: 1, end: 3 }),
+      expect.objectContaining({
+        surface: "歩きます",
+        start: 3,
+        end: 7,
+        metadata: expect.objectContaining({
+          lemma: "歩く",
+          verbClass: "godan-ku",
+          observedForm: "polite",
+        }),
+      }),
+    ]);
+  });
+
   it("drops malformed study token metadata without dropping the token", () => {
     const result = sanitizeStudyTokens(
       [
@@ -180,6 +241,90 @@ describe("core validators and normalizers", () => {
         note: null,
       },
     });
+    expect(result.droppedSections).toEqual(["studyTokens[0].metadata"]);
+  });
+
+  it("preserves full adjective metadata when the part of speech mentions a copula", () => {
+    const result = sanitizeStudyTokens(
+      [
+        {
+          surface: "静かでした",
+          start: 0,
+          end: 5,
+          reading: "しずかでした",
+          audioText: "shizuka deshita",
+          kind: "word",
+          note: {
+            partOfSpeech: "na-adjective + copula",
+            meaning: "was quiet",
+          },
+          metadata: {
+            language: "ja",
+            category: "morphology",
+            kind: "adjective",
+            surface: "静かでした",
+            lemma: "静か",
+            adjectiveClass: "na",
+            observedForm: "polite-past",
+            confidence: "high",
+          },
+        },
+      ],
+      "静かでした"
+    );
+
+    expect(result.droppedSections).toEqual([]);
+    expect(result.studyTokens[0]).toMatchObject({
+      surface: "静かでした",
+      metadata: {
+        language: "ja",
+        category: "morphology",
+        kind: "adjective",
+        surface: "静かでした",
+        lemma: "静か",
+        adjectiveClass: "na",
+        observedForm: "polite-past",
+        confidence: "high",
+      },
+    });
+  });
+
+  it("drops morphology metadata attached to isolated Japanese copula tokens", () => {
+    const result = sanitizeStudyTokens(
+      [
+        {
+          surface: "でした",
+          start: 2,
+          end: 5,
+          reading: "でした",
+          audioText: "deshita",
+          kind: "word",
+          note: {
+            partOfSpeech: "copula (past polite form of だ/です)",
+          },
+          metadata: {
+            language: "ja",
+            category: "morphology",
+            kind: "adjective",
+            surface: "でした",
+            lemma: "です",
+            adjectiveClass: "na",
+            observedForm: "polite-past",
+            confidence: "high",
+          },
+        },
+      ],
+      "静かでした"
+    );
+
+    expect(result.studyTokens).toEqual([
+      expect.objectContaining({
+        surface: "でした",
+        start: 2,
+        end: 5,
+      }),
+    ]);
+    expect(result.studyTokens[0]).not.toHaveProperty("metadata");
     expect(result.droppedSections).toEqual(["studyTokens[0].metadata"]);
   });
 

@@ -1,5 +1,13 @@
 # @edwinho/kotoba-gemini
 
+## 0.3.3
+
+### Patch Changes
+
+- Add retries for invalid JSON responses and Japanese verb/adjective study tokens missing morphology metadata, refine godan polite verb guidance, and bump the enrichment prompt version so stale cached translations refresh.
+- Updated dependencies
+  - @edwinho/kotoba-core@0.2.4
+
 ## 0.3.2
 
 ### Patch Changes

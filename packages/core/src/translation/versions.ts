@@ -4,7 +4,7 @@ export const CURRENT_TRANSLATION_SCHEMA_VERSION = 1;
 
 // Bump this for prompt-only enrichment quality changes that should lazily
 // refresh cache rows without changing the persisted schema contract.
-export const CURRENT_ENRICHMENT_PROMPT_VERSION = 4;
+export const CURRENT_ENRICHMENT_PROMPT_VERSION = 5;
 
 export type TranslationRefreshPolicy = "default" | "prefer_fresh" | "force";
 

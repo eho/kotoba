@@ -94,6 +94,11 @@ type JapaneseFormTableObservedCoreRow = {
   polite: JapaneseFormTableObservedCell;
 };
 
+interface JapaneseObservedMarker {
+  observedForm?: JapaneseObservedForm | null;
+  surface?: string | null;
+}
+
 const VERB_CLASS_LABELS: Record<JapaneseVerbClass, string> = {
   ichidan: "Ichidan verb",
   "godan-u": "Godan verb",
@@ -233,6 +238,7 @@ function generateVerbTable(
   if (forms == null) {
     return null;
   }
+  const observed = createObservedMarker(metadata);
   const rows = markObservedRows(
     [
       { label: "Dictionary", value: forms.dictionary, observedForm: "dictionary" },
@@ -247,7 +253,7 @@ function generateVerbTable(
       { label: "Te-form", value: forms.teForm, observedForm: "te-form" },
       { label: "Potential", value: forms.potential, observedForm: "potential" },
     ],
-    metadata.observedForm
+    observed
   );
   const coreRows = markObservedCoreRows(
     [
@@ -282,14 +288,14 @@ function generateVerbTable(
         },
       },
     ],
-    metadata.observedForm
+    observed
   );
   const otherRows = markObservedRows(
     [
       { label: "Te-form", value: forms.teForm, observedForm: "te-form" },
       { label: "Potential", value: forms.potential, observedForm: "potential" },
     ],
-    metadata.observedForm
+    observed
   );
 
   return {
@@ -489,8 +495,9 @@ function generateAdjectiveTable(
         },
       },
     ],
-    metadata.observedForm
+    createObservedMarker(metadata)
   );
+  const observed = createObservedMarker(metadata);
   const otherRows = markObservedRows(
     metadata.adjectiveClass === "i"
       ? [
@@ -506,7 +513,7 @@ function generateAdjectiveTable(
           { label: "Te-form", value: forms.teForm, observedForm: "te-form" },
           { label: "Adverbial", value: forms.adverbial, observedForm: "adverbial" },
         ],
-    metadata.observedForm
+    observed
   );
 
   return {
@@ -516,7 +523,7 @@ function generateAdjectiveTable(
     title: "Forms",
     subtitle,
     confidence: metadata.confidence,
-    rows: markObservedRows(rows, metadata.observedForm),
+    rows: markObservedRows(rows, observed),
     coreRows,
     otherRows,
   };
@@ -581,24 +588,47 @@ function stripTrailingNa(value: string): string {
   return value.endsWith("な") ? value.slice(0, -1) : value;
 }
 
+function createObservedMarker(
+  metadata: JapaneseVerbMorphologyMetadata | JapaneseAdjectiveMorphologyMetadata
+): JapaneseObservedMarker {
+  return {
+    observedForm: metadata.observedForm,
+    surface: metadata.surface,
+  };
+}
+
+function formValueMatchesSurface(value: string, surface: string | null | undefined): boolean {
+  if (surface == null || surface.trim().length === 0) {
+    return false;
+  }
+
+  return value
+    .split("/")
+    .map((part) => part.trim())
+    .some((part) => part === surface);
+}
+
 function markObservedCoreRows(
   rows: JapaneseFormTableObservedCoreRow[],
-  observedForm: JapaneseObservedForm | null | undefined
+  observed: JapaneseObservedMarker
 ): JapaneseFormTableCoreRow[] {
   return rows.map((row) => ({
     key: row.key,
     label: row.label,
-    plain: markObservedCoreCell(row.plain, observedForm),
-    polite: markObservedCoreCell(row.polite, observedForm),
+    plain: markObservedCoreCell(row.plain, observed),
+    polite: markObservedCoreCell(row.polite, observed),
   }));
 }
 
 function markObservedCoreCell(
   cell: JapaneseFormTableObservedCell,
-  observedForm: JapaneseObservedForm | null | undefined
+  observed: JapaneseObservedMarker
 ): JapaneseFormTableCoreCell {
   const { observedForm: cellObservedForm, ...rest } = cell;
-  if (cellObservedForm === undefined || cellObservedForm !== observedForm) {
+  if (
+    (cellObservedForm === undefined || cellObservedForm !== observed.observedForm) &&
+    !formValueMatchesSurface(cell.value, observed.surface)
+  ) {
     return rest;
   }
 
@@ -611,12 +641,13 @@ function markObservedCoreCell(
 
 function markObservedRows(
   rows: JapaneseFormTableObservedRow[],
-  observedForm: JapaneseObservedForm | null | undefined
+  observed: JapaneseObservedMarker
 ): JapaneseFormTableRow[] {
   return rows.map(({ observedForm: rowObservedForm, ...row }) => {
-    const observed =
-      rowObservedForm !== undefined && observedForm === rowObservedForm;
-    if (!observed) {
+    const isObserved =
+      (rowObservedForm !== undefined && observed.observedForm === rowObservedForm) ||
+      formValueMatchesSurface(row.value, observed.surface);
+    if (!isObserved) {
       return row;
     }
 

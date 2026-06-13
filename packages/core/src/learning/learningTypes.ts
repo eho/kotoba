@@ -1031,6 +1031,34 @@ function sanitizeStudyTokenMetadata(
   return undefined;
 }
 
+const ISOLATED_JAPANESE_COPULA_SURFACES = new Set(["だ", "です", "だった", "でした"]);
+const JAPANESE_COPULA_LEMMAS = new Set(["だ", "です"]);
+
+function isUnsupportedIsolatedJapaneseMetadata(
+  metadata: StudyTokenMetadata | null | undefined,
+  note: StudyTokenNote | null | undefined
+): boolean {
+  if (metadata == null || metadata.kind !== "adjective") {
+    return false;
+  }
+
+  const surface = metadata.surface.trim();
+  const lemma = metadata.lemma.trim();
+  const hasIsolatedCopulaShape =
+    ISOLATED_JAPANESE_COPULA_SURFACES.has(surface) || JAPANESE_COPULA_LEMMAS.has(lemma);
+  if (!hasIsolatedCopulaShape) {
+    return false;
+  }
+
+  const partOfSpeech = note?.partOfSpeech?.trim().toLowerCase() ?? "";
+  return (
+    partOfSpeech.includes("copula") ||
+    partOfSpeech.includes("auxiliary") ||
+    ISOLATED_JAPANESE_COPULA_SURFACES.has(surface) ||
+    JAPANESE_COPULA_LEMMAS.has(lemma)
+  );
+}
+
 function normalizeComparableToken(value: string) {
   return value.replace(/[。、，,！!？?：:；;"'”“「」『』（）()\s]/g, "").trim();
 }
@@ -1041,6 +1069,38 @@ export function hasStudyTokenNoteContent(note: StudyTokenNote | null | undefined
     (typeof note?.meaning === "string" && note.meaning.trim().length > 0) ||
     (typeof note?.note === "string" && note.note.trim().length > 0)
   );
+}
+
+function resolveStudyTokenSpan(params: {
+  targetText: string;
+  surface: string;
+  start: number;
+  end: number;
+  searchCursor: number;
+}): { start: number; end: number } | null {
+  if (
+    Number.isInteger(params.start) &&
+    Number.isInteger(params.end) &&
+    params.start >= 0 &&
+    params.end > params.start &&
+    params.end <= params.targetText.length &&
+    params.targetText.slice(params.start, params.end) === params.surface
+  ) {
+    return { start: params.start, end: params.end };
+  }
+
+  const alignedStart = params.targetText.indexOf(params.surface, params.searchCursor);
+  const start =
+    alignedStart >= 0 ? alignedStart : params.targetText.indexOf(params.surface);
+
+  if (start < 0) {
+    return null;
+  }
+
+  return {
+    start,
+    end: start + params.surface.length,
+  };
 }
 
 export function promoteGrammarNotesToStudyTokens(params: {
@@ -1094,6 +1154,7 @@ export function sanitizeStudyTokens(
 
   const droppedSections: string[] = [];
   const dedupe = new Set<string>();
+  let searchCursor = 0;
   const studyTokens = value.flatMap((item, index): StudyToken[] => {
     if (!isRecord(item)) {
       droppedSections.push(`studyTokens:${index}`);
@@ -1127,13 +1188,26 @@ export function sanitizeStudyTokens(
     if (hasMetadata && metadata === undefined) {
       droppedSections.push(`studyTokens[${index}].metadata`);
     }
+    const safeMetadata = isUnsupportedIsolatedJapaneseMetadata(metadata, note)
+      ? undefined
+      : metadata;
+    if (metadata != null && safeMetadata === undefined) {
+      droppedSections.push(`studyTokens[${index}].metadata`);
+    }
 
-    if (start < 0 || end <= start || end > targetText.length) {
+    const span = resolveStudyTokenSpan({
+      targetText,
+      surface,
+      start,
+      end,
+      searchCursor,
+    });
+    if (span == null) {
       droppedSections.push(`studyTokens:${index}`);
       return [];
     }
 
-    const canonicalSurface = targetText.slice(start, end);
+    const canonicalSurface = targetText.slice(span.start, span.end);
     if (canonicalSurface !== surface || !hasWordLikeCharacters(surface)) {
       droppedSections.push(`studyTokens:${index}`);
       return [];
@@ -1148,27 +1222,28 @@ export function sanitizeStudyTokens(
       item.kind === "word" || item.kind === "grammar" || item.kind === "phrase"
         ? item.kind
         : "word";
-    const dedupeKey = `${start}:${end}:${audioText}`;
+    const dedupeKey = `${span.start}:${span.end}:${audioText}`;
     if (dedupe.has(dedupeKey)) {
       droppedSections.push(`studyTokens:${index}`);
       return [];
     }
     dedupe.add(dedupeKey);
+    searchCursor = span.end;
 
     return [
       {
         id:
           typeof item.id === "string" && item.id.length > 0
             ? item.id
-            : `${start}:${end}:${surface}`,
+            : `${span.start}:${span.end}:${surface}`,
         surface,
-        start,
-        end,
+        start: span.start,
+        end: span.end,
         reading,
         audioText,
         kind,
         note,
-        ...(metadata !== undefined ? { metadata } : {}),
+        ...(safeMetadata !== undefined ? { metadata: safeMetadata } : {}),
       },
     ];
   });

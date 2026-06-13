@@ -1,6 +1,6 @@
 {
   "name": "@edwinho/kotoba-core",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "Framework-neutral language-learning data models, language profiles, and translation draft utilities.",
   "author": "eho",
   "license": "MIT",

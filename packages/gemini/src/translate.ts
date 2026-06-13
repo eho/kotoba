@@ -20,6 +20,7 @@ import type {
   InputMode,
   ReadingSegment,
   SourceLanguage,
+  StudyToken,
   SupportedLearningLanguage,
   TextVariants,
   TranslationDraft,
@@ -291,6 +292,101 @@ function isPinyinLikeCantoneseReading(value: string | null | undefined): boolean
     /\b(?:wo|du|e|ni|hao|shi|ri|jin|tian|xie|qing|yao|mai|chi|he|zai|men|de)[1-5]\b/i.test(
       value
     )
+  );
+}
+
+function hasJapaneseScript(value: string): boolean {
+  return /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(value);
+}
+
+function isJapaneseMorphologyPartOfSpeech(
+  partOfSpeech: string | null | undefined
+): boolean {
+  if (partOfSpeech == null) {
+    return false;
+  }
+
+  const normalized = partOfSpeech.trim().toLowerCase();
+  const hasEnglishMorphologyTerm = /(^|[^a-z])(verb|adjective)([^a-z]|$)/.test(
+    normalized
+  );
+  return (
+    hasEnglishMorphologyTerm ||
+    normalized.includes("動詞") ||
+    normalized.includes("形容詞")
+  );
+}
+
+function findJapaneseMorphologyTokensMissingMetadata(
+  draft: TranslationDraft<SupportedLearningLanguage>
+): StudyToken[] {
+  if (draft.targetLanguage !== "ja") {
+    return [];
+  }
+
+  return draft.studyTokens.filter(
+    (token) =>
+      token.kind === "word" &&
+      token.metadata == null &&
+      hasJapaneseScript(token.surface) &&
+      isJapaneseMorphologyPartOfSpeech(token.note?.partOfSpeech)
+  );
+}
+
+function uniqueSurfaces(tokens: StudyToken[]): string[] {
+  return [...new Set(tokens.map((token) => token.surface))];
+}
+
+function formatQuotedList(items: string[]): string {
+  return items.map((item) => `"${item}"`).join(", ");
+}
+
+function formatErrorReason(error: unknown): string {
+  return error instanceof Error
+    ? error.message.replace(/\s+/g, " ").slice(0, 160)
+    : "unknown";
+}
+
+function isJsonParseError(error: unknown): boolean {
+  return error instanceof SyntaxError;
+}
+
+function buildJsonResponseRetryPrompt(params: {
+  originalPrompt: string;
+  reason: string;
+}): string {
+  return `${params.originalPrompt}
+
+JSON repair:
+The previous response could not be parsed as JSON (${params.reason}).
+Return the full response again as one valid compact JSON object only.
+Do not include markdown fences, comments, trailing prose, or incomplete arrays/objects.`;
+}
+
+function buildMorphologyMetadataRepairPrompt(params: {
+  originalPrompt: string;
+  draft: TranslationDraft<SupportedLearningLanguage>;
+  missingTokens: StudyToken[];
+}): string {
+  const surfaces = formatQuotedList(uniqueSurfaces(params.missingTokens));
+
+  return `${params.originalPrompt}
+
+Quality repair:
+The previous JSON response for targetText "${params.draft.targetText}" contained Japanese studyTokens labeled as verbs/adjectives without valid morphology metadata for these exact token surfaces: ${surfaces}.
+Return the full JSON response again with the same sourceText, targetText, readingSegments, and translationText.
+For each listed surface that is a Japanese verb, i-adjective, or na-adjective, include metadata on that same studyToken: metadata.surface must exactly equal the token surface, lemma must be the dictionary/base form, verbClass or adjectiveClass must be set, observedForm must match the visible form, and confidence must be "high" or "medium".
+If a listed surface is not actually a verb/adjective, correct note.partOfSpeech instead of adding metadata.
+Do not split listed full inflected surfaces into stem and auxiliary tokens.`;
+}
+
+function hasRepairPayloadDrift(params: {
+  payload: TranslationProviderPayload;
+  originalDraft: TranslationDraft<SupportedLearningLanguage>;
+}): boolean {
+  return (
+    params.payload.targetLanguage !== params.originalDraft.targetLanguage ||
+    params.payload.targetText !== params.originalDraft.targetText
   );
 }
 
@@ -621,38 +717,118 @@ export async function translateWithKotobaGemini(
   const ai = createKotobaGeminiClient(options);
   const providerBackend = resolveProviderBackend(options);
   const model = options.model ?? DEFAULT_KOTOBA_GEMINI_MODEL;
+  const providerWarnings: string[] = [];
 
-  const response = await ai.models.generateContent({
-    model,
-    contents: prompt,
-    config: {
-      maxOutputTokens: 8192,
-      responseMimeType: "application/json",
-      responseSchema: RESPONSE_SCHEMA,
-      temperature: 0.2,
-    },
-  });
+  const generatePayload = async (contents: string): Promise<TranslationProviderPayload> => {
+    const response = await ai.models.generateContent({
+      model,
+      contents,
+      config: {
+        maxOutputTokens: 8192,
+        responseMimeType: "application/json",
+        responseSchema: RESPONSE_SCHEMA,
+        temperature: 0.2,
+      },
+    });
 
-  if (!response.text) {
-    throw new Error("Gemini returned an empty response");
+    if (!response.text) {
+      throw new Error("Gemini returned an empty response");
+    }
+
+    const payload = JSON.parse(response.text) as TranslationProviderPayload;
+    validatePayload(payload, learningLanguage);
+    return payload;
+  };
+  const generatePayloadWithJsonRetry = async (
+    contents: string,
+    context: "initial" | "morphology-repair"
+  ): Promise<TranslationProviderPayload> => {
+    try {
+      return await generatePayload(contents);
+    } catch (error) {
+      if (!isJsonParseError(error)) {
+        throw error;
+      }
+
+      const reason = formatErrorReason(error);
+      const retryPayload = await generatePayload(
+        buildJsonResponseRetryPrompt({
+          originalPrompt: contents,
+          reason,
+        })
+      );
+      providerWarnings.push(
+        `Gemini: retried invalid JSON response context=${context} reason=${reason}`
+      );
+      return retryPayload;
+    }
+  };
+  const normalizeProviderPayload = (payload: TranslationProviderPayload) =>
+    normalizePayload(payload, {
+      chineseVariant: effectiveChineseVariant,
+      onDeviceDraft:
+        "mode" in params && params.mode === "enrich_on_device_draft"
+          ? params.onDeviceDraft
+          : undefined,
+    });
+
+  const payload = await generatePayloadWithJsonRetry(prompt, "initial");
+  let normalized = normalizeProviderPayload(payload);
+  const missingMorphologyMetadata = findJapaneseMorphologyTokensMissingMetadata(
+    normalized.draft
+  );
+
+  if (missingMorphologyMetadata.length > 0) {
+    const missingSurfaces = uniqueSurfaces(missingMorphologyMetadata);
+
+    try {
+      const repairPayload = await generatePayloadWithJsonRetry(
+        buildMorphologyMetadataRepairPrompt({
+          originalPrompt: prompt,
+          draft: normalized.draft,
+          missingTokens: missingMorphologyMetadata,
+        }),
+        "morphology-repair"
+      );
+
+      if (
+        !hasRepairPayloadDrift({
+          payload: repairPayload,
+          originalDraft: normalized.draft,
+        })
+      ) {
+        const repaired = normalizeProviderPayload(repairPayload);
+        const remainingMissingMetadata =
+          findJapaneseMorphologyTokensMissingMetadata(repaired.draft);
+
+        if (remainingMissingMetadata.length < missingMorphologyMetadata.length) {
+          normalized = repaired;
+          normalized.warnings.push(
+            `Gemini: repaired missing Japanese morphology metadata surfaces=${formatQuotedList(missingSurfaces)}`
+          );
+        } else {
+          normalized.warnings.push(
+            `Gemini: missing Japanese morphology metadata after repair surfaces=${formatQuotedList(uniqueSurfaces(remainingMissingMetadata))}`
+          );
+        }
+      } else {
+        normalized.warnings.push(
+          `Gemini: ignored morphology metadata repair response because core translation fields changed surfaces=${formatQuotedList(missingSurfaces)}`
+        );
+      }
+    } catch (error) {
+      normalized.warnings.push(
+        `Gemini: morphology metadata repair failed surfaces=${formatQuotedList(missingSurfaces)} reason=${error instanceof Error ? error.message : "unknown"}`
+      );
+    }
   }
-
-  const payload = JSON.parse(response.text) as TranslationProviderPayload;
-  validatePayload(payload, learningLanguage);
-  const normalized = normalizePayload(payload, {
-    chineseVariant: effectiveChineseVariant,
-    onDeviceDraft:
-      "mode" in params && params.mode === "enrich_on_device_draft"
-        ? params.onDeviceDraft
-        : undefined,
-  });
 
   return {
     draft: normalized.draft,
     provider: "gemini",
     providerBackend,
     model,
-    warnings: normalized.warnings,
+    warnings: [...providerWarnings, ...normalized.warnings],
     canonicalTargetTextMismatch: normalized.canonicalTargetTextMismatch,
   };
 }

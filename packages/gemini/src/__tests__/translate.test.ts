@@ -236,6 +236,67 @@ describe("translateWithKotobaGemini", () => {
     expect(result.draft.studyTokens.length).toBeGreaterThan(0);
   });
 
+  it("retries once when the provider returns invalid JSON", async () => {
+    mockGenerateContent.mockResolvedValueOnce({
+      text: '{"targetLanguage":"ja","sourceLanguage":"en"',
+    });
+    mockGenerateContent.mockResolvedValueOnce({
+      text: JSON.stringify({
+        targetLanguage: "ja",
+        sourceLanguage: "en",
+        sourceText: "I drank",
+        targetText: "飲んだ",
+        targetTextVariants: null,
+        readingSegments: [{ text: "飲んだ", reading: "のんだ" }],
+        romanization: "nonda",
+        translationText: "I drank",
+        studyTokens: [
+          {
+            id: "0:3:飲んだ",
+            surface: "飲んだ",
+            start: 0,
+            end: 3,
+            reading: "のんだ",
+            audioText: "飲んだ",
+            kind: "word",
+            note: {
+              partOfSpeech: "verb",
+              meaning: "drank",
+              note: "Past casual form of 飲む.",
+            },
+            metadata: {
+              language: "ja",
+              category: "morphology",
+              kind: "verb",
+              surface: "飲んだ",
+              lemma: "飲む",
+              verbClass: "godan-mu",
+              observedForm: "past",
+              confidence: "high",
+            },
+          },
+        ],
+        enrichment: sampleEnrichment,
+      }),
+    });
+    const { translateWithKotobaGemini } = await import("../index");
+
+    const result = await translateWithKotobaGemini(
+      { inputText: "I drank", learningLanguage: "ja" },
+      { apiKey: "test-key" }
+    );
+
+    expect(mockGenerateContent).toHaveBeenCalledTimes(2);
+    const retryRequest = mockGenerateContent.mock.calls[1]?.[0];
+    expect(String(retryRequest?.contents)).toContain("JSON repair:");
+    expect(String(retryRequest?.contents)).toContain("valid compact JSON object only");
+    expect(result.draft.targetText).toBe("飲んだ");
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings[0]).toContain(
+      "Gemini: retried invalid JSON response context=initial"
+    );
+  });
+
   it("rejects provider payloads that omit cloud enrichment", async () => {
     mockGenerateContent.mockResolvedValueOnce({
       text: JSON.stringify({
@@ -356,10 +417,13 @@ describe("translateWithKotobaGemini", () => {
     expect(japanesePrompt).toContain("prefer one word-level studyToken for the full inflected surface");
     expect(japanesePrompt).toContain("attach metadata to the full conjugated verb/adjective surface token");
     expect(japanesePrompt).toContain("食べます");
+    expect(japanesePrompt).toContain("歩きます");
     expect(japanesePrompt).toContain('language: "ja"');
     expect(japanesePrompt).toContain('category: "morphology"');
     expect(japanesePrompt).toContain('lemma: "食べる"');
+    expect(japanesePrompt).toContain('lemma: "歩く"');
     expect(japanesePrompt).toContain('verbClass: "ichidan"');
+    expect(japanesePrompt).toContain('verbClass: "godan-ku"');
     expect(japanesePrompt).toContain('observedForm: "polite"');
     expect(japanesePrompt).toContain("静かだった");
     expect(japanesePrompt).toContain('kind: "verb"');
@@ -407,6 +471,7 @@ describe("translateWithKotobaGemini", () => {
     expect(metadataSchema.properties.verbClass.enum).toContain("godan-mu");
     expect(metadataSchema.properties.adjectiveClass.enum).toEqual(["i", "na"]);
     expect(metadataSchema.properties.observedForm.enum).toContain("past");
+    expect(metadataSchema.properties.observedForm.enum).toContain("polite-past");
     expect(metadataSchema.properties.confidence.enum).toEqual([
       "high",
       "medium",
@@ -552,49 +617,224 @@ describe("translateWithKotobaGemini", () => {
     expect(result.warnings).toEqual([]);
   });
 
-  it("drops malformed Japanese study token metadata with a warning while preserving the token", async () => {
+  it("does not request morphology repair for adverb tokens", async () => {
     mockGenerateContent.mockResolvedValueOnce({
       text: JSON.stringify({
         targetLanguage: "ja",
         sourceLanguage: "en",
-        sourceText: "I drank tea",
-        targetText: "お茶を飲んだ",
+        sourceText: "I ate sushi yesterday",
+        targetText: "昨日寿司を食べました。",
         targetTextVariants: null,
         readingSegments: [
-          { text: "お茶", reading: "おちゃ" },
+          { text: "昨日", reading: "きのう" },
+          { text: "寿司", reading: "すし" },
           { text: "を", reading: null },
-          { text: "飲んだ", reading: "のんだ" },
+          { text: "食べました", reading: "たべました" },
+          { text: "。", reading: null },
         ],
-        romanization: "ocha o nonda",
-        translationText: "I drank tea",
+        romanization: "kinou sushi o tabemashita",
+        translationText: "I ate sushi yesterday.",
         studyTokens: [
           {
-            id: "3:6:飲んだ",
-            surface: "飲んだ",
-            start: 3,
-            end: 6,
-            reading: "のんだ",
-            audioText: "飲んだ",
+            id: "0:2:昨日",
+            surface: "昨日",
+            start: 0,
+            end: 2,
+            reading: "きのう",
+            audioText: "昨日",
+            kind: "word",
+            note: {
+              partOfSpeech: "adverb",
+              meaning: "yesterday",
+              note: null,
+            },
+          },
+          {
+            id: "2:4:寿司",
+            surface: "寿司",
+            start: 2,
+            end: 4,
+            reading: "すし",
+            audioText: "寿司",
+            kind: "word",
+            note: {
+              partOfSpeech: "noun",
+              meaning: "sushi",
+              note: null,
+            },
+          },
+          {
+            id: "5:10:食べました",
+            surface: "食べました",
+            start: 5,
+            end: 10,
+            reading: "たべました",
+            audioText: "食べました",
             kind: "word",
             note: {
               partOfSpeech: "verb",
-              meaning: "drank",
-              note: "Past casual form of 飲む.",
+              meaning: "ate",
+              note: "Polite past form of 食べる.",
             },
             metadata: {
               language: "ja",
               category: "morphology",
               kind: "verb",
-              surface: "飲む",
-              lemma: "飲む",
-              verbClass: "not-a-class",
-              observedForm: "past",
+              surface: "食べました",
+              lemma: "食べる",
+              verbClass: "ichidan",
+              observedForm: "polite-past",
               confidence: "high",
             },
           },
         ],
         enrichment: sampleEnrichment,
       }),
+    });
+    const { translateWithKotobaGemini } = await import("../index");
+
+    const result = await translateWithKotobaGemini(
+      { inputText: "I ate sushi yesterday", learningLanguage: "ja" },
+      { apiKey: "test-key" }
+    );
+
+    expect(mockGenerateContent).toHaveBeenCalledTimes(1);
+    expect(result.draft.studyTokens.find((token) => token.surface === "昨日")).not.toHaveProperty(
+      "metadata"
+    );
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("repairs missing Japanese morphology metadata for verb and adjective study tokens", async () => {
+    const missingMetadataPayload = {
+      targetLanguage: "ja",
+      sourceLanguage: "en",
+      sourceText: "I walk to the station",
+      targetText: "駅まで歩きます",
+      targetTextVariants: null,
+      readingSegments: [
+        { text: "駅", reading: "えき" },
+        { text: "まで", reading: null },
+        { text: "歩きます", reading: "あるきます" },
+      ],
+      romanization: "eki made arukimasu",
+      translationText: "I walk to the station.",
+      studyTokens: [
+        {
+          id: "3:7:歩きます",
+          surface: "歩きます",
+          start: 3,
+          end: 7,
+          reading: "あるきます",
+          audioText: "歩きます",
+          kind: "word",
+          note: {
+            partOfSpeech: "verb",
+            meaning: "walk",
+            note: "Polite ます form.",
+          },
+        },
+      ],
+      enrichment: sampleEnrichment,
+    };
+    const repairedPayload = {
+      ...missingMetadataPayload,
+      studyTokens: [
+        {
+          ...missingMetadataPayload.studyTokens[0],
+          metadata: {
+            language: "ja",
+            category: "morphology",
+            kind: "verb",
+            surface: "歩きます",
+            lemma: "歩く",
+            verbClass: "godan-ku",
+            observedForm: "polite",
+            confidence: "high",
+          },
+        },
+      ],
+    };
+    mockGenerateContent.mockResolvedValueOnce({
+      text: JSON.stringify(missingMetadataPayload),
+    });
+    mockGenerateContent.mockResolvedValueOnce({
+      text: JSON.stringify(repairedPayload),
+    });
+    const { translateWithKotobaGemini } = await import("../index");
+
+    const result = await translateWithKotobaGemini(
+      { inputText: "I walk to the station", learningLanguage: "ja" },
+      { apiKey: "test-key" }
+    );
+
+    expect(mockGenerateContent).toHaveBeenCalledTimes(2);
+    const repairRequest = mockGenerateContent.mock.calls[1]?.[0];
+    expect(String(repairRequest?.contents)).toContain("Quality repair:");
+    expect(String(repairRequest?.contents)).toContain("歩きます");
+    expect(result.draft.targetText).toBe("駅まで歩きます");
+    expect(result.draft.studyTokens[0]?.metadata).toEqual({
+      language: "ja",
+      category: "morphology",
+      kind: "verb",
+      surface: "歩きます",
+      lemma: "歩く",
+      verbClass: "godan-ku",
+      observedForm: "polite",
+      confidence: "high",
+    });
+    expect(result.warnings).toEqual([
+      'Gemini: repaired missing Japanese morphology metadata surfaces="歩きます"',
+    ]);
+  });
+
+  it("drops malformed Japanese study token metadata with a warning while preserving the token", async () => {
+    const malformedPayload = {
+      targetLanguage: "ja",
+      sourceLanguage: "en",
+      sourceText: "I drank tea",
+      targetText: "お茶を飲んだ",
+      targetTextVariants: null,
+      readingSegments: [
+        { text: "お茶", reading: "おちゃ" },
+        { text: "を", reading: null },
+        { text: "飲んだ", reading: "のんだ" },
+      ],
+      romanization: "ocha o nonda",
+      translationText: "I drank tea",
+      studyTokens: [
+        {
+          id: "3:6:飲んだ",
+          surface: "飲んだ",
+          start: 3,
+          end: 6,
+          reading: "のんだ",
+          audioText: "飲んだ",
+          kind: "word",
+          note: {
+            partOfSpeech: "verb",
+            meaning: "drank",
+            note: "Past casual form of 飲む.",
+          },
+          metadata: {
+            language: "ja",
+            category: "morphology",
+            kind: "verb",
+            surface: "飲む",
+            lemma: "飲む",
+            verbClass: "not-a-class",
+            observedForm: "past",
+            confidence: "high",
+          },
+        },
+      ],
+      enrichment: sampleEnrichment,
+    };
+    mockGenerateContent.mockResolvedValueOnce({
+      text: JSON.stringify(malformedPayload),
+    });
+    mockGenerateContent.mockResolvedValueOnce({
+      text: JSON.stringify(malformedPayload),
     });
     const { translateWithKotobaGemini } = await import("../index");
 
@@ -608,6 +848,7 @@ describe("translateWithKotobaGemini", () => {
     expect(result.draft.studyTokens[0]).not.toHaveProperty("metadata");
     expect(result.warnings).toEqual([
       "Gemini: dropped payload subsections language=ja sections=studyTokens[0].metadata",
+      'Gemini: missing Japanese morphology metadata after repair surfaces="飲んだ"',
     ]);
   });
 

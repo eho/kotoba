@@ -1,5 +1,11 @@
 # @edwinho/kotoba-core
 
+## 0.2.4
+
+### Patch Changes
+
+- Bump the enrichment prompt version, realign provider study-token spans when Japanese offsets are byte-like, infer observed form-table cells from metadata surfaces, and drop bogus morphology metadata from isolated copula tokens without dropping full adjective-copula surfaces.
+
 ## 0.2.3
 
 ### Patch Changes

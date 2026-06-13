@@ -21,18 +21,19 @@ const JAPANESE_VERB_CLASSES =
   "ichidan, godan-u, godan-ku, godan-gu, godan-su, godan-tsu, godan-nu, godan-bu, godan-mu, godan-ru, suru, kuru, irregular";
 
 const JAPANESE_OBSERVED_FORMS =
-  "dictionary, plain, polite, negative, past, past-negative, te-form, potential, before-noun, adverbial, conditional, unknown";
+  "dictionary, plain, polite, polite-negative, polite-past, polite-past-negative, negative, past, past-negative, te-form, potential, before-noun, adverbial, conditional, unknown";
 
 export const JAPANESE_STUDY_TOKEN_METADATA_GUIDANCE = [
   "  - metadata is Japanese-only; for every confident Japanese verb, i-adjective, or na-adjective study-token surface, include morphology metadata; omit metadata or use null only when the token is not a verb/adjective or morphology confidence is low",
   "  - for Japanese verbs and adjectives, prefer one word-level studyToken for the full inflected surface over splitting stems and endings; this lets metadata.surface match the exact tappable token",
-  "  - attach metadata to the full conjugated verb/adjective surface token, including polite endings and copula/auxiliary endings when they are part of that token (e.g. 食べます, 飲んだ, 高かった, 静かだった); do not attach metadata to an isolated auxiliary or particle token when it is split out separately",
+  "  - attach metadata to the full conjugated verb/adjective surface token, including polite endings and copula/auxiliary endings when they are part of that token (e.g. 食べます, 歩きます, 飲んだ, 高かった, 静かだった); do not attach metadata to an isolated auxiliary or particle token when it is split out separately",
   "  - do not add metadata to particles, counters, nouns, isolated auxiliaries, grammar-only spans, phrases, Chinese, or Korean tokens",
   '  - metadata.surface must exactly match the token surface, category must be "morphology", language must be "ja", and confidence must be "high" or "medium"; omit low-confidence morphology instead of guessing',
   `  - verb metadata shape: { language: "ja", category: "morphology", kind: "verb", surface, lemma, verbClass, observedForm, confidence }; verbClass is required and one of ${JAPANESE_VERB_CLASSES}; adjectiveClass must be null or omitted`,
   `  - adjective metadata shape: { language: "ja", category: "morphology", kind: "adjective", surface, lemma, adjectiveClass, observedForm, confidence }; adjectiveClass is required and is "i" or "na"; verbClass must be null or omitted`,
   `  - observedForm should be set when the surface clearly shows a form; use null only when unavailable, and otherwise it must be one of ${JAPANESE_OBSERVED_FORMS}`,
   '  - examples: 食べます -> { language: "ja", category: "morphology", kind: "verb", surface: "食べます", lemma: "食べる", verbClass: "ichidan", observedForm: "polite", confidence: "high" }',
+  '  - examples: 歩きます -> { language: "ja", category: "morphology", kind: "verb", surface: "歩きます", lemma: "歩く", verbClass: "godan-ku", observedForm: "polite", confidence: "high" }',
   '  - examples: 飲んだ -> { language: "ja", category: "morphology", kind: "verb", surface: "飲んだ", lemma: "飲む", verbClass: "godan-mu", observedForm: "past", confidence: "high" }',
   '  - examples: 高かった -> { language: "ja", category: "morphology", kind: "adjective", surface: "高かった", lemma: "高い", adjectiveClass: "i", observedForm: "past", confidence: "high" }',
   '  - examples: 静かだった -> { language: "ja", category: "morphology", kind: "adjective", surface: "静かだった", lemma: "静か", adjectiveClass: "na", observedForm: "past", confidence: "high" }',
