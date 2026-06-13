@@ -330,7 +330,7 @@ describe("translateWithKotobaGemini", () => {
     expect(vertexResult.providerBackend).toBe("vertex_ai");
   });
 
-  it("asks for optional Japanese study token metadata only in Japanese prompts", async () => {
+  it("asks for Japanese study token metadata for confident verb and adjective tokens only in Japanese prompts", async () => {
     const { buildStandardTranslationPrompt } = await import("../prompts");
 
     const japanesePrompt = buildStandardTranslationPrompt({
@@ -351,12 +351,21 @@ describe("translateWithKotobaGemini", () => {
       learningLanguage: "ko",
     });
 
-    expect(japanesePrompt).toContain("metadata is optional and Japanese-only");
-    expect(japanesePrompt).toContain("confident verb or adjective tokens");
+    expect(japanesePrompt).toContain("metadata is Japanese-only");
+    expect(japanesePrompt).toContain("for every confident Japanese verb, i-adjective, or na-adjective study-token surface");
+    expect(japanesePrompt).toContain("prefer one word-level studyToken for the full inflected surface");
+    expect(japanesePrompt).toContain("attach metadata to the full conjugated verb/adjective surface token");
+    expect(japanesePrompt).toContain("食べます");
+    expect(japanesePrompt).toContain('language: "ja"');
+    expect(japanesePrompt).toContain('category: "morphology"');
+    expect(japanesePrompt).toContain('lemma: "食べる"');
+    expect(japanesePrompt).toContain('verbClass: "ichidan"');
+    expect(japanesePrompt).toContain('observedForm: "polite"');
+    expect(japanesePrompt).toContain("静かだった");
     expect(japanesePrompt).toContain('kind: "verb"');
     expect(japanesePrompt).toContain('kind: "adjective"');
-    expect(mandarinPrompt).not.toContain("metadata is optional and Japanese-only");
-    expect(koreanPrompt).not.toContain("metadata is optional and Japanese-only");
+    expect(mandarinPrompt).not.toContain("metadata is Japanese-only");
+    expect(koreanPrompt).not.toContain("metadata is Japanese-only");
   });
 
   it("allows optional Phase 1 Japanese metadata in the Gemini response schema", async () => {
@@ -466,6 +475,79 @@ describe("translateWithKotobaGemini", () => {
       verbClass: "godan-mu",
       observedForm: "past",
       confidence: "high",
+    });
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("preserves high-confidence polite verb metadata for form-table rendering", async () => {
+    mockGenerateContent.mockResolvedValueOnce({
+      text: JSON.stringify({
+        targetLanguage: "ja",
+        sourceLanguage: "en",
+        sourceText: "What are we eating?",
+        targetText: "何を食べますか",
+        targetTextVariants: null,
+        readingSegments: [
+          { text: "何", reading: "なん" },
+          { text: "を", reading: null },
+          { text: "食べます", reading: "たべます" },
+          { text: "か", reading: null },
+        ],
+        romanization: "nan o tabemasu ka",
+        translationText: "What are we eating?",
+        studyTokens: [
+          {
+            id: "2:6:食べます",
+            surface: "食べます",
+            start: 2,
+            end: 6,
+            reading: "たべます",
+            audioText: "食べます",
+            kind: "word",
+            note: {
+              partOfSpeech: "verb",
+              meaning: "eat",
+              note: "Polite ます form of 食べる.",
+            },
+            metadata: {
+              language: "ja",
+              category: "morphology",
+              kind: "verb",
+              surface: "食べます",
+              lemma: "食べる",
+              verbClass: "ichidan",
+              observedForm: "polite",
+              confidence: "high",
+            },
+          },
+        ],
+        enrichment: sampleEnrichment,
+      }),
+    });
+    const { translateWithKotobaGemini } = await import("../index");
+
+    const result = await translateWithKotobaGemini(
+      { inputText: "What are we eating?", learningLanguage: "ja" },
+      { apiKey: "test-key" }
+    );
+
+    expect(result.draft.studyTokens[0]).toMatchObject({
+      surface: "食べます",
+      note: {
+        partOfSpeech: "verb",
+        meaning: "eat",
+        note: "Polite ます form of 食べる.",
+      },
+      metadata: {
+        language: "ja",
+        category: "morphology",
+        kind: "verb",
+        surface: "食べます",
+        lemma: "食べる",
+        verbClass: "ichidan",
+        observedForm: "polite",
+        confidence: "high",
+      },
     });
     expect(result.warnings).toEqual([]);
   });

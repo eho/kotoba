@@ -84,13 +84,13 @@ describe("public API", () => {
     expect(core.resolveLanguageProfile("zh")).toBe(core.getLanguageProfile("zh"));
   });
 
-  it("requires enrichment prompt version 3 for fresh cached translations", () => {
-    expect(core.CURRENT_ENRICHMENT_PROMPT_VERSION).toBe(3);
+  it("requires enrichment prompt version 4 for fresh cached translations", () => {
+    expect(core.CURRENT_ENRICHMENT_PROMPT_VERSION).toBe(4);
     expect(
       core.getTranslationCacheStaleReason(
         {
           translationSchemaVersion: core.CURRENT_TRANSLATION_SCHEMA_VERSION,
-          enrichmentPromptVersion: 2,
+          enrichmentPromptVersion: 3,
         },
         core.resolveTranslationVersionRequirement()
       )

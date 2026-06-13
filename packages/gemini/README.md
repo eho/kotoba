@@ -132,11 +132,13 @@ The default model is `gemini-2.5-flash-lite`. Pass `model` in the options object
 ## Study Token Metadata
 
 Version `0.2.0` includes Gemini prompt, schema, and normalization support for
-optional Japanese study-token metadata.
+Japanese study-token metadata.
 
-Japanese `draft.studyTokens` may include optional `metadata` for confident verb
-and adjective tokens. The package asks Gemini for Phase 1 morphology metadata,
-validates it through `@edwinho/kotoba-core`, preserves valid metadata on the
+The provider asks Gemini to include `metadata` for every confident Japanese verb
+or adjective study token, especially full inflected surfaces such as `食べます`
+or `高かった`. The field remains nullable for non-Japanese tokens,
+non-morphology tokens, and low-confidence analysis. The package validates
+metadata through `@edwinho/kotoba-core`, preserves valid metadata on the
 normalized draft, and drops malformed metadata with a warning while keeping the
 token itself.
 

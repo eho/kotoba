@@ -1,6 +1,6 @@
 {
   "name": "@edwinho/kotoba-gemini",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Gemini translation provider for Kotoba core translation drafts.",
   "author": "eho",
   "license": "MIT",
@@ -41,7 +41,7 @@
   },
   "dependencies": {
     "@google/genai": "^1.47.0",
-    "@edwinho/kotoba-core": "^0.2.1"
+    "@edwinho/kotoba-core": "^0.2.2"
   },
   "devDependencies": {
     "typescript": "~6.0.3"
