@@ -151,6 +151,46 @@ describe("generateJapaneseFormTable", () => {
     });
   });
 
+  it("marks repaired multi-token observed surfaces without changing the metadata token surface", () => {
+    const table = generateJapaneseFormTable({
+      language: "ja",
+      category: "morphology",
+      kind: "adjective",
+      surface: "高く",
+      observedSurface: "高くはなかった",
+      lemma: "高い",
+      adjectiveClass: "i",
+      observedForm: "past-negative",
+      confidence: "high",
+    });
+
+    expect(table?.coreRows.find((row) => row.key === "past-negative")?.plain).toEqual({
+      value: "高くなかった",
+      observed: true,
+      note: "Seen here as 高くはなかった",
+    });
+  });
+
+  it("marks repaired split polite verb observed surfaces", () => {
+    const table = generateJapaneseFormTable({
+      language: "ja",
+      category: "morphology",
+      kind: "verb",
+      surface: "飲み",
+      observedSurface: "飲みませんでした",
+      lemma: "飲む",
+      verbClass: "godan-mu",
+      observedForm: "polite-past-negative",
+      confidence: "high",
+    });
+
+    expect(table?.coreRows.find((row) => row.key === "past-negative")?.polite).toEqual({
+      value: "飲みませんでした",
+      observed: true,
+      note: "Seen here",
+    });
+  });
+
   it("generates a plain and polite core matrix for i-adjectives", () => {
     const table = generateJapaneseFormTable({
       language: "ja",

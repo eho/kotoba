@@ -244,6 +244,219 @@ describe("core validators and normalizers", () => {
     expect(result.droppedSections).toEqual(["studyTokens[0].metadata"]);
   });
 
+  it("repairs split polite verb past metadata onto the observed surface", () => {
+    const result = sanitizeStudyTokens(
+      [
+        {
+          surface: "食べ",
+          start: 0,
+          end: 2,
+          reading: "たべ",
+          audioText: "tabe",
+          kind: "word",
+          note: {
+            partOfSpeech: "verb stem",
+            meaning: "eat",
+          },
+          metadata: {
+            language: "ja",
+            category: "morphology",
+            kind: "verb",
+            surface: "食べ",
+            lemma: "食べる",
+            verbClass: "ichidan",
+            observedForm: null,
+            confidence: "high",
+          },
+        },
+        {
+          surface: "まし",
+          start: 2,
+          end: 4,
+          reading: "まし",
+          audioText: "mashi",
+          kind: "grammar",
+          note: {
+            partOfSpeech: "auxiliary",
+          },
+        },
+        {
+          surface: "た",
+          start: 4,
+          end: 5,
+          reading: "た",
+          audioText: "ta",
+          kind: "grammar",
+          note: {
+            partOfSpeech: "auxiliary",
+          },
+        },
+      ],
+      "食べました"
+    );
+
+    expect(result.droppedSections).toEqual([]);
+    expect(result.studyTokens[0]).toMatchObject({
+      surface: "食べ",
+      metadata: {
+        language: "ja",
+        category: "morphology",
+        kind: "verb",
+        surface: "食べ",
+        observedSurface: "食べました",
+        lemma: "食べる",
+        verbClass: "ichidan",
+        observedForm: "polite-past",
+        confidence: "high",
+      },
+    });
+    expect(result.studyTokens[1]).toMatchObject({
+      surface: "まし",
+      kind: "grammar",
+    });
+    expect(result.studyTokens[1]).not.toHaveProperty("metadata");
+  });
+
+  it("repairs split polite verb past-negative metadata across multiple auxiliary tokens", () => {
+    const result = sanitizeStudyTokens(
+      [
+        {
+          surface: "飲み",
+          start: 0,
+          end: 2,
+          reading: "のみ",
+          audioText: "nomi",
+          kind: "word",
+          note: {
+            partOfSpeech: "verb stem",
+            meaning: "drink",
+          },
+          metadata: {
+            language: "ja",
+            category: "morphology",
+            kind: "verb",
+            surface: "飲み",
+            lemma: "飲む",
+            verbClass: "godan-mu",
+            observedForm: null,
+            confidence: "high",
+          },
+        },
+        {
+          surface: "ませ",
+          start: 2,
+          end: 4,
+          reading: "ませ",
+          audioText: "mase",
+          kind: "grammar",
+          note: {
+            partOfSpeech: "auxiliary",
+          },
+        },
+        {
+          surface: "んで",
+          start: 4,
+          end: 6,
+          reading: "んで",
+          audioText: "nde",
+          kind: "grammar",
+          note: {
+            partOfSpeech: "auxiliary",
+          },
+        },
+        {
+          surface: "した",
+          start: 6,
+          end: 8,
+          reading: "した",
+          audioText: "shita",
+          kind: "word",
+          note: {
+            partOfSpeech: "verb",
+          },
+          metadata: {
+            language: "ja",
+            category: "morphology",
+            kind: "verb",
+            surface: "した",
+            lemma: "する",
+            verbClass: "suru",
+            observedForm: "past",
+            confidence: "high",
+          },
+        },
+      ],
+      "飲みませんでした"
+    );
+
+    expect(result.droppedSections).toEqual([]);
+    expect(result.studyTokens[0]).toMatchObject({
+      surface: "飲み",
+      metadata: {
+        language: "ja",
+        category: "morphology",
+        kind: "verb",
+        surface: "飲み",
+        observedSurface: "飲みませんでした",
+        lemma: "飲む",
+        verbClass: "godan-mu",
+        observedForm: "polite-past-negative",
+        confidence: "high",
+      },
+    });
+    expect(result.studyTokens[3]).toMatchObject({
+      surface: "した",
+      kind: "grammar",
+    });
+    expect(result.studyTokens[3]).not.toHaveProperty("metadata");
+  });
+
+  it("repairs split polite verb metadata when auxiliary study tokens are missing", () => {
+    const result = sanitizeStudyTokens(
+      [
+        {
+          surface: "飲み",
+          start: 0,
+          end: 2,
+          reading: "のみ",
+          audioText: "nomi",
+          kind: "word",
+          note: {
+            partOfSpeech: "verb stem",
+            meaning: "drink",
+          },
+          metadata: {
+            language: "ja",
+            category: "morphology",
+            kind: "verb",
+            surface: "飲み",
+            lemma: "飲む",
+            verbClass: "godan-mu",
+            observedForm: null,
+            confidence: "high",
+          },
+        },
+      ],
+      "飲みませんでした"
+    );
+
+    expect(result.droppedSections).toEqual([]);
+    expect(result.studyTokens[0]).toMatchObject({
+      surface: "飲み",
+      metadata: {
+        language: "ja",
+        category: "morphology",
+        kind: "verb",
+        surface: "飲み",
+        observedSurface: "飲みませんでした",
+        lemma: "飲む",
+        verbClass: "godan-mu",
+        observedForm: "polite-past-negative",
+        confidence: "high",
+      },
+    });
+  });
+
   it("preserves full adjective metadata when the part of speech mentions a copula", () => {
     const result = sanitizeStudyTokens(
       [
@@ -337,7 +550,8 @@ describe("core validators and normalizers", () => {
         language: "ja",
         category: "morphology",
         kind: "adjective",
-        surface: "静かでした",
+        surface: "静か",
+        observedSurface: "静かでした",
         lemma: "静か",
         adjectiveClass: "na",
         observedForm: "polite-past",
@@ -416,7 +630,8 @@ describe("core validators and normalizers", () => {
         language: "ja",
         category: "morphology",
         kind: "adjective",
-        surface: "高くないです",
+        surface: "高く",
+        observedSurface: "高くないです",
         lemma: "高い",
         adjectiveClass: "i",
         observedForm: "polite-negative",
@@ -478,7 +693,8 @@ describe("core validators and normalizers", () => {
         language: "ja",
         category: "morphology",
         kind: "adjective",
-        surface: "静かではなかった",
+        surface: "静か",
+        observedSurface: "静かではなかった",
         lemma: "静か",
         adjectiveClass: "na",
         observedForm: "past-negative",
@@ -490,6 +706,225 @@ describe("core validators and normalizers", () => {
       kind: "grammar",
     });
     expect(result.studyTokens[2]).not.toHaveProperty("metadata");
+  });
+
+  it("repairs split i-adjective contrastive past-negative metadata without changing the owning token surface", () => {
+    const result = sanitizeStudyTokens(
+      [
+        {
+          surface: "高く",
+          start: 0,
+          end: 2,
+          reading: "たかく",
+          audioText: "takaku",
+          kind: "word",
+          note: {
+            partOfSpeech: "i-adjective",
+            meaning: "expensive",
+          },
+          metadata: {
+            language: "ja",
+            category: "morphology",
+            kind: "adjective",
+            surface: "高く",
+            lemma: "高い",
+            adjectiveClass: "i",
+            observedForm: "adverbial",
+            confidence: "high",
+          },
+        },
+        {
+          surface: "は",
+          start: 2,
+          end: 3,
+          reading: "は",
+          audioText: "wa",
+          kind: "grammar",
+          note: {
+            partOfSpeech: "particle",
+          },
+        },
+        {
+          surface: "なかった",
+          start: 3,
+          end: 7,
+          reading: "なかった",
+          audioText: "nakatta",
+          kind: "word",
+          note: {
+            partOfSpeech: "auxiliary",
+          },
+        },
+      ],
+      "高くはなかった"
+    );
+
+    expect(result.droppedSections).toEqual([]);
+    expect(result.studyTokens[0]).toMatchObject({
+      surface: "高く",
+      metadata: {
+        language: "ja",
+        category: "morphology",
+        kind: "adjective",
+        surface: "高く",
+        observedSurface: "高くはなかった",
+        lemma: "高い",
+        adjectiveClass: "i",
+        observedForm: "past-negative",
+        confidence: "high",
+      },
+    });
+    expect(result.studyTokens[2]).toMatchObject({
+      surface: "なかった",
+      kind: "grammar",
+    });
+    expect(result.studyTokens[2]).not.toHaveProperty("metadata");
+  });
+
+  it("repairs split i-adjective contrastive metadata when the particle is omitted from study tokens", () => {
+    const result = sanitizeStudyTokens(
+      [
+        {
+          surface: "高く",
+          start: 0,
+          end: 2,
+          reading: "たかく",
+          audioText: "takaku",
+          kind: "word",
+          note: {
+            partOfSpeech: "i-adjective",
+            meaning: "expensive",
+          },
+          metadata: {
+            language: "ja",
+            category: "morphology",
+            kind: "adjective",
+            surface: "高く",
+            lemma: "高い",
+            adjectiveClass: "i",
+            observedForm: "adverbial",
+            confidence: "high",
+          },
+        },
+        {
+          surface: "なかった",
+          start: 3,
+          end: 7,
+          reading: "なかった",
+          audioText: "nakatta",
+          kind: "word",
+          note: {
+            partOfSpeech: "auxiliary",
+          },
+        },
+      ],
+      "高くはなかった"
+    );
+
+    expect(result.droppedSections).toEqual([]);
+    expect(result.studyTokens[0]).toMatchObject({
+      surface: "高く",
+      metadata: {
+        language: "ja",
+        category: "morphology",
+        kind: "adjective",
+        surface: "高く",
+        observedSurface: "高くはなかった",
+        lemma: "高い",
+        adjectiveClass: "i",
+        observedForm: "past-negative",
+        confidence: "high",
+      },
+    });
+    expect(result.studyTokens[1]).toMatchObject({
+      surface: "なかった",
+      kind: "grammar",
+    });
+  });
+
+  it("repairs split na-adjective polite past-negative metadata when では is tokenized as で plus は", () => {
+    const result = sanitizeStudyTokens(
+      [
+        {
+          surface: "静か",
+          start: 0,
+          end: 2,
+          reading: "しずか",
+          audioText: "shizuka",
+          kind: "word",
+          note: {
+            partOfSpeech: "na-adjective",
+            meaning: "quiet",
+          },
+        },
+        {
+          surface: "で",
+          start: 2,
+          end: 3,
+          reading: "で",
+          audioText: "de",
+          kind: "grammar",
+          note: {
+            partOfSpeech: "copula",
+          },
+        },
+        {
+          surface: "は",
+          start: 3,
+          end: 4,
+          reading: "は",
+          audioText: "wa",
+          kind: "grammar",
+          note: {
+            partOfSpeech: "particle",
+          },
+        },
+        {
+          surface: "ありません",
+          start: 4,
+          end: 9,
+          reading: "ありません",
+          audioText: "arimasen",
+          kind: "grammar",
+          note: {
+            partOfSpeech: "auxiliary",
+          },
+        },
+        {
+          surface: "でした",
+          start: 9,
+          end: 12,
+          reading: "でした",
+          audioText: "deshita",
+          kind: "grammar",
+          note: {
+            partOfSpeech: "copula",
+          },
+        },
+      ],
+      "静かではありませんでした"
+    );
+
+    expect(result.droppedSections).toEqual([]);
+    expect(result.studyTokens[0]).toMatchObject({
+      surface: "静か",
+      metadata: {
+        language: "ja",
+        category: "morphology",
+        kind: "adjective",
+        surface: "静か",
+        observedSurface: "静かではありませんでした",
+        lemma: "静か",
+        adjectiveClass: "na",
+        observedForm: "polite-past-negative",
+        confidence: "high",
+      },
+    });
+    expect(result.studyTokens[3]).toMatchObject({
+      surface: "ありません",
+      kind: "grammar",
+    });
+    expect(result.studyTokens[3]).not.toHaveProperty("metadata");
   });
 
   it("drops morphology metadata attached to isolated Japanese copula tokens", () => {

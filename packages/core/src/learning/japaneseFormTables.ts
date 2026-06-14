@@ -593,7 +593,7 @@ function createObservedMarker(
 ): JapaneseObservedMarker {
   return {
     observedForm: metadata.observedForm,
-    surface: metadata.surface,
+    surface: metadata.observedSurface ?? metadata.surface,
   };
 }
 
@@ -606,6 +606,15 @@ function formValueMatchesSurface(value: string, surface: string | null | undefin
     .split("/")
     .map((part) => part.trim())
     .some((part) => part === surface);
+}
+
+function getObservedNote(params: {
+  value: string;
+  surface: string | null | undefined;
+}): string {
+  return formValueMatchesSurface(params.value, params.surface)
+    ? "Seen here"
+    : `Seen here as ${params.surface}`;
 }
 
 function markObservedCoreRows(
@@ -625,9 +634,10 @@ function markObservedCoreCell(
   observed: JapaneseObservedMarker
 ): JapaneseFormTableCoreCell {
   const { observedForm: cellObservedForm, ...rest } = cell;
+  const matchesSurface = formValueMatchesSurface(cell.value, observed.surface);
   if (
     (cellObservedForm === undefined || cellObservedForm !== observed.observedForm) &&
-    !formValueMatchesSurface(cell.value, observed.surface)
+    !matchesSurface
   ) {
     return rest;
   }
@@ -635,7 +645,7 @@ function markObservedCoreCell(
   return {
     ...rest,
     observed: true,
-    note: "Seen here",
+    note: getObservedNote({ value: cell.value, surface: observed.surface }),
   };
 }
 
@@ -644,9 +654,10 @@ function markObservedRows(
   observed: JapaneseObservedMarker
 ): JapaneseFormTableRow[] {
   return rows.map(({ observedForm: rowObservedForm, ...row }) => {
+    const matchesSurface = formValueMatchesSurface(row.value, observed.surface);
     const isObserved =
       (rowObservedForm !== undefined && observed.observedForm === rowObservedForm) ||
-      formValueMatchesSurface(row.value, observed.surface);
+      matchesSurface;
     if (!isObserved) {
       return row;
     }
@@ -654,7 +665,7 @@ function markObservedRows(
     return {
       ...row,
       observed: true,
-      note: "Seen here",
+      note: getObservedNote({ value: row.value, surface: observed.surface }),
     };
   });
 }

@@ -128,12 +128,12 @@ console.log(korean.draft.enrichment?.korean);
 ```
 
 The default model is `gemini-2.5-flash-lite`. Pass `model` in the options
-object to override it for evaluation. In live morphology evaluation,
-`gemini-2.5-flash` produced cleaner Japanese adjective metadata and fewer JSON
-reliability issues than `gemini-2.5-flash-lite`, at higher latency/cost. Keep
-the default when cost and speed are the priority; consider `gemini-2.5-flash`
-for Japanese morphology-sensitive paths or as a fallback after repeated JSON or
-metadata-quality warnings.
+object to override it for evaluation. Google model availability changes over
+time, so production integrations should periodically rerun Japanese morphology
+evals against current Flash and Flash-Lite models before changing their runtime
+default. Keep the package default when cost and speed are the priority; consider
+a stronger Flash model for Japanese morphology-sensitive paths or as a runtime
+fallback after repeated JSON or metadata-quality warnings.
 
 ## Study Token Metadata
 
@@ -149,13 +149,15 @@ normalized draft, and drops malformed metadata with a warning while keeping the
 token itself.
 
 Gemini responses are still treated as provider output, not ground truth. The
-provider layer retries malformed JSON once and can ask Gemini to repair missing
-verb/adjective metadata once. Core then applies deterministic validation and
-bounded Japanese morphology repairs. For example, if Gemini splits
-`高くないです` into `高く` + `ない` + `です`, core can repair the metadata to the
-full observed adjective form when the spans and adjective evidence are
-contiguous. If the provider does not return enough reliable evidence, callers
-should expect missing metadata rather than a guessed form table.
+provider layer retries malformed JSON up to two times and can ask Gemini to
+repair missing verb/adjective metadata once. Core then applies deterministic
+validation and bounded Japanese morphology repairs. For example, if Gemini splits
+`食べました` into `食べ` + `ました`, or splits `高くないです` into `高く` +
+`ない` + `です`, core can keep `metadata.surface` aligned to the owning token
+and set `metadata.observedSurface` to the full observed phrase when the spans
+and morphology evidence are contiguous. If the provider does not return enough
+reliable evidence, callers should expect missing metadata rather than a guessed
+form table.
 
 ```ts
 const result = await translateWithKotobaGemini(

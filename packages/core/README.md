@@ -91,18 +91,24 @@ const metadata: StudyTokenMetadata = {
 };
 ```
 
+`surface` is the study token that owns the metadata. Core may add
+`observedSurface` when deterministic repair can prove that a split sequence is
+one observed morphology phrase, for example a token `高く` with
+`observedSurface: "高くないです"`.
+
 `sanitizeStudyTokens` preserves valid metadata and drops only malformed
 metadata while keeping the token. Dropped metadata is reported through a
 metadata-specific path such as `studyTokens[0].metadata`.
 
 The sanitizer also performs bounded Japanese morphology repair for common
-provider tokenization failures. For example, split adjective sequences such as
-`静か` + `でした`, `高く` + `ない` + `です`, and `静か` + `では` + `なかった`
-can be normalized into metadata surfaces like `静かでした`, `高くないです`,
-and `静かではなかった` so form tables can mark the observed cell. These repairs
-require contiguous target-text spans and adjective metadata or clear adjective
-part-of-speech notes; core does not guess arbitrary morphology from unrelated
-tokens.
+provider tokenization failures. For example, split polite verb sequences such as
+`食べ` + `ました`, and split adjective sequences such as `静か` + `でした`,
+`高く` + `ない` + `です`, and `静か` + `では` + `なかった`, can be normalized
+into observed surfaces like `食べました`, `静かでした`, `高くないです`, and
+`静かではなかった` so form tables can mark the observed cell while preserving the
+original tappable token surface. These repairs require contiguous target-text
+spans and trusted verb/adjective metadata or clear adjective part-of-speech
+notes; core does not guess arbitrary morphology from unrelated tokens.
 
 ## Package Boundary
 

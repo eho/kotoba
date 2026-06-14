@@ -31,6 +31,8 @@ import { RESPONSE_SCHEMA } from "./responseSchema";
 
 export const DEFAULT_KOTOBA_GEMINI_MODEL = "gemini-2.5-flash-lite";
 
+const JSON_RESPONSE_REPAIR_ATTEMPTS = 2;
+
 export type KotobaGeminiProviderBackend = "developer_api" | "vertex_ai";
 
 export interface DeveloperApiGeminiClientOptions {
@@ -743,25 +745,28 @@ export async function translateWithKotobaGemini(
     contents: string,
     context: "initial" | "morphology-repair"
   ): Promise<TranslationProviderPayload> => {
-    try {
-      return await generatePayload(contents);
-    } catch (error) {
-      if (!isJsonParseError(error)) {
-        throw error;
-      }
+    let currentContents = contents;
 
-      const reason = formatErrorReason(error);
-      const retryPayload = await generatePayload(
-        buildJsonResponseRetryPrompt({
+    for (let attempt = 0; attempt <= JSON_RESPONSE_REPAIR_ATTEMPTS; attempt += 1) {
+      try {
+        return await generatePayload(currentContents);
+      } catch (error) {
+        if (!isJsonParseError(error) || attempt === JSON_RESPONSE_REPAIR_ATTEMPTS) {
+          throw error;
+        }
+
+        const reason = formatErrorReason(error);
+        currentContents = buildJsonResponseRetryPrompt({
           originalPrompt: contents,
           reason,
-        })
-      );
-      providerWarnings.push(
-        `Gemini: retried invalid JSON response context=${context} reason=${reason}`
-      );
-      return retryPayload;
+        });
+        providerWarnings.push(
+          `Gemini: retried invalid JSON response context=${context} attempt=${attempt + 1} reason=${reason}`
+        );
+      }
     }
+
+    throw new Error("Gemini JSON retry exhausted");
   };
   const normalizeProviderPayload = (payload: TranslationProviderPayload) =>
     normalizePayload(payload, {

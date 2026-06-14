@@ -25,17 +25,21 @@ not rely on the provider being perfect.
 The reliability model has three layers:
 
 1. Provider guidance and retries ask Gemini for full inflected verb/adjective
-   surfaces, validate the structured JSON response, retry once when JSON is
-   malformed, and retry once when surviving verb/adjective tokens are missing
+   surfaces, validate the structured JSON response, retry malformed JSON up to
+   two times, and retry once when surviving verb/adjective tokens are missing
    metadata.
 2. Core normalization repairs deterministic provider mistakes such as
    byte-like Japanese offsets, malformed metadata attached to isolated copulas,
    and missing `observedForm` values when the observed surface exactly matches a
    generated form.
-3. Core morphology repair handles common split adjective sequences, for example
+3. Core morphology repair handles common split verb and adjective sequences,
+   for example split polite verb stems like `食べ` + `ました`, and adjective
+   sequences like
    `静か` + `でした`, `高く` + `ない` + `です`, and `静か` + `では` + `なかった`.
-   These repairs are pattern-bounded and require contiguous tokens plus
-   adjective metadata or clear adjective part-of-speech notes.
+   These repairs keep `metadata.surface` aligned to the owning study token and
+   set `metadata.observedSurface` to the full repaired phrase when it differs.
+   The patterns are bounded and require contiguous tokens plus adjective
+   metadata or clear adjective part-of-speech notes.
 
 This means Kotoba does make bounded linguistic inferences. It does not attempt
 open-ended morphological analysis for every Japanese expression. A form table is
@@ -46,9 +50,10 @@ The generated table rows are deterministic for the supported metadata classes,
 but upstream translation and metadata can still be wrong. Treat the output as
 AI-assisted grammar support rather than an authoritative grammar dictionary.
 It is strongest for common ichidan/godan verbs and common i-adjective and
-na-adjective plain, polite, negative, and past forms. Be cautious with rare
-irregular forms, idioms, contrastive constructions such as `高くはなかった`,
-and cases where the provider chooses a different translation or register.
+na-adjective plain, polite, negative, and past forms. Some bounded contrastive
+i-adjective negatives such as `高くはなかった` are repaired when token evidence is
+clear, but be cautious with rare irregular forms, idioms, and cases where the
+provider chooses a different translation or register.
 
 ## Chinese
 

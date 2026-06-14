@@ -303,6 +303,7 @@ export interface JapaneseVerbMorphologyMetadata {
   category: "morphology";
   kind: "verb";
   surface: string;
+  observedSurface?: string | null;
   lemma: string;
   verbClass: JapaneseVerbClass;
   observedForm?: JapaneseObservedForm | null;
@@ -314,6 +315,7 @@ export interface JapaneseAdjectiveMorphologyMetadata {
   category: "morphology";
   kind: "adjective";
   surface: string;
+  observedSurface?: string | null;
   lemma: string;
   adjectiveClass: "i" | "na";
   observedForm?: JapaneseObservedForm | null;
@@ -972,6 +974,20 @@ function sanitizeJapaneseObservedForm(
   return isJapaneseObservedForm(value) ? value : undefined;
 }
 
+function sanitizeJapaneseObservedSurface(
+  value: unknown,
+  metadataSurface: string
+): string | null | undefined {
+  if (value == null) {
+    return null;
+  }
+  const observedSurface = toOptionalString(value);
+  if (observedSurface == null) {
+    return undefined;
+  }
+  return observedSurface.includes(metadataSurface) ? observedSurface : undefined;
+}
+
 function sanitizeStudyTokenMetadata(
   value: unknown,
   tokenSurface: string
@@ -989,11 +1005,22 @@ function sanitizeStudyTokenMetadata(
   const metadataSurface = toOptionalString(value.surface);
   const lemma = toOptionalString(value.lemma);
   const observedForm = sanitizeJapaneseObservedForm(value.observedForm);
+  const hasObservedSurface = Object.prototype.hasOwnProperty.call(
+    value,
+    "observedSurface"
+  );
+  const observedSurface =
+    !hasObservedSurface
+      ? null
+      : metadataSurface == null
+        ? undefined
+        : sanitizeJapaneseObservedSurface(value.observedSurface, metadataSurface);
   if (
     metadataSurface == null ||
     metadataSurface !== tokenSurface.trim() ||
     lemma == null ||
     observedForm === undefined ||
+    observedSurface === undefined ||
     !isMetadataConfidence(value.confidence)
   ) {
     return undefined;
@@ -1005,6 +1032,7 @@ function sanitizeStudyTokenMetadata(
       category: "morphology",
       kind: "verb",
       surface: metadataSurface,
+      ...(observedSurface == null ? {} : { observedSurface }),
       lemma,
       verbClass: value.verbClass,
       observedForm,
@@ -1021,6 +1049,7 @@ function sanitizeStudyTokenMetadata(
       category: "morphology",
       kind: "adjective",
       surface: metadataSurface,
+      ...(observedSurface == null ? {} : { observedSurface }),
       lemma,
       adjectiveClass: value.adjectiveClass,
       observedForm,
@@ -1040,7 +1069,7 @@ interface JapaneseAdjectiveMetadataSeed {
   confidence: MetadataConfidence;
 }
 
-interface JapaneseAdjectiveAuxiliaryMatch {
+interface JapaneseAuxiliaryMatch {
   surface: string;
   observedForm: JapaneseObservedForm;
   consumedIndexes: number[];
@@ -1079,6 +1108,17 @@ function isJapaneseAdjectiveMetadata(
     metadata.language === "ja" &&
     metadata.category === "morphology" &&
     metadata.kind === "adjective"
+  );
+}
+
+function isJapaneseVerbMetadata(
+  metadata: StudyTokenMetadata | null | undefined
+): metadata is JapaneseVerbMorphologyMetadata {
+  return (
+    metadata != null &&
+    metadata.language === "ja" &&
+    metadata.category === "morphology" &&
+    metadata.kind === "verb"
   );
 }
 
@@ -1220,49 +1260,63 @@ function getJapaneseAdjectiveAuxiliaryPatterns(
   }
 
   return [
+    { suffix: "はありませんでした", observedForm: "polite-past-negative" },
     { suffix: "ありませんでした", observedForm: "polite-past-negative" },
+    { suffix: "はなかったです", observedForm: "polite-past-negative" },
     { suffix: "なかったです", observedForm: "polite-past-negative" },
+    { suffix: "はありません", observedForm: "polite-negative" },
     { suffix: "ありません", observedForm: "polite-negative" },
+    { suffix: "はないです", observedForm: "polite-negative" },
     { suffix: "ないです", observedForm: "polite-negative" },
+    { suffix: "はなかった", observedForm: "past-negative" },
     { suffix: "なかった", observedForm: "past-negative" },
+    { suffix: "はない", observedForm: "negative" },
     { suffix: "ない", observedForm: "negative" },
   ];
 }
 
-function findContiguousSuffixTokenIndexes(
+function findTargetTextSuffixTokenIndexes(
   studyTokens: StudyToken[],
+  targetText: string,
   tokenIndex: number,
   suffix: string
 ): number[] | null {
-  let cursor = 0;
-  let expectedStart = studyTokens[tokenIndex]?.end;
+  const token = studyTokens[tokenIndex];
+  const suffixStart = token?.end;
+  if (suffixStart == null) {
+    return null;
+  }
+  const suffixEnd = suffixStart + suffix.length;
+  if (targetText.slice(suffixStart, suffixEnd) !== suffix) {
+    return null;
+  }
+
   const indexes: number[] = [];
 
   for (let index = tokenIndex + 1; index < studyTokens.length; index += 1) {
     const token = studyTokens[index];
-    if (expectedStart == null || token.start !== expectedStart) {
-      return null;
+    if (token.start >= suffixEnd) {
+      break;
     }
-    if (!suffix.startsWith(token.surface, cursor)) {
+    if (
+      token.start < suffixStart ||
+      token.end > suffixEnd ||
+      targetText.slice(token.start, token.end) !== token.surface
+    ) {
       return null;
     }
 
-    cursor += token.surface.length;
-    expectedStart = token.end;
     indexes.push(index);
-
-    if (cursor === suffix.length) {
-      return indexes;
-    }
   }
 
-  return null;
+  return indexes;
 }
 
 function findJapaneseAdjectiveAuxiliaryMatch(
   studyTokens: StudyToken[],
-  tokenIndex: number
-): JapaneseAdjectiveAuxiliaryMatch | null {
+  tokenIndex: number,
+  targetText: string
+): JapaneseAuxiliaryMatch | null {
   const token = studyTokens[tokenIndex];
   const seed = inferJapaneseAdjectiveMetadataSeed(token);
   if (seed == null) {
@@ -1274,12 +1328,49 @@ function findJapaneseAdjectiveAuxiliaryMatch(
   );
 
   for (const pattern of patterns) {
-    const consumedIndexes = findContiguousSuffixTokenIndexes(
+    const consumedIndexes = findTargetTextSuffixTokenIndexes(
       studyTokens,
+      targetText,
       tokenIndex,
       pattern.suffix
     );
-    if (consumedIndexes != null && consumedIndexes.length > 0) {
+    if (consumedIndexes != null) {
+      return {
+        surface: `${token.surface}${pattern.suffix}`,
+        observedForm: pattern.observedForm,
+        consumedIndexes,
+      };
+    }
+  }
+
+  return null;
+}
+
+function findJapaneseVerbAuxiliaryMatch(
+  studyTokens: StudyToken[],
+  tokenIndex: number,
+  targetText: string
+): JapaneseAuxiliaryMatch | null {
+  const token = studyTokens[tokenIndex];
+  if (!isJapaneseVerbMetadata(token.metadata)) {
+    return null;
+  }
+
+  const patterns: Array<{ suffix: string; observedForm: JapaneseObservedForm }> = [
+    { suffix: "ませんでした", observedForm: "polite-past-negative" },
+    { suffix: "ました", observedForm: "polite-past" },
+    { suffix: "ません", observedForm: "polite-negative" },
+    { suffix: "ます", observedForm: "polite" },
+  ];
+
+  for (const pattern of patterns) {
+    const consumedIndexes = findTargetTextSuffixTokenIndexes(
+      studyTokens,
+      targetText,
+      tokenIndex,
+      pattern.suffix
+    );
+    if (consumedIndexes != null) {
       return {
         surface: `${token.surface}${pattern.suffix}`,
         observedForm: pattern.observedForm,
@@ -1299,7 +1390,10 @@ function removeStudyTokenMetadata(token: StudyToken): StudyToken {
   };
 }
 
-function repairSplitJapaneseAdjectiveMetadata(studyTokens: StudyToken[]): StudyToken[] {
+function repairSplitJapaneseAdjectiveMetadata(
+  studyTokens: StudyToken[],
+  targetText: string
+): StudyToken[] {
   const replacements = new Map<number, StudyToken>();
   const consumedAuxiliaryIndexes = new Set<number>();
 
@@ -1309,7 +1403,7 @@ function repairSplitJapaneseAdjectiveMetadata(studyTokens: StudyToken[]): StudyT
     }
 
     const token = studyTokens[index];
-    const match = findJapaneseAdjectiveAuxiliaryMatch(studyTokens, index);
+    const match = findJapaneseAdjectiveAuxiliaryMatch(studyTokens, index, targetText);
     if (match == null) {
       continue;
     }
@@ -1328,7 +1422,8 @@ function repairSplitJapaneseAdjectiveMetadata(studyTokens: StudyToken[]): StudyT
             language: "ja",
             category: "morphology",
             kind: "adjective",
-            surface: match.surface,
+            surface: token.surface,
+            observedSurface: match.surface,
             lemma: seed.lemma,
             adjectiveClass: seed.adjectiveClass,
             observedForm: match.observedForm,
@@ -1336,11 +1431,58 @@ function repairSplitJapaneseAdjectiveMetadata(studyTokens: StudyToken[]): StudyT
           }
         : {
             ...existingMetadata,
-            surface: match.surface,
+            observedSurface: match.surface,
             observedForm: match.observedForm,
           };
 
     replacements.set(index, { ...token, metadata });
+    for (const consumedIndex of match.consumedIndexes) {
+      consumedAuxiliaryIndexes.add(consumedIndex);
+    }
+  }
+
+  if (replacements.size === 0 && consumedAuxiliaryIndexes.size === 0) {
+    return studyTokens;
+  }
+
+  return studyTokens.map((token, index) => {
+    const replacement = replacements.get(index);
+    if (replacement != null) {
+      return replacement;
+    }
+    if (consumedAuxiliaryIndexes.has(index)) {
+      return removeStudyTokenMetadata(token);
+    }
+    return token;
+  });
+}
+
+function repairSplitJapaneseVerbMetadata(
+  studyTokens: StudyToken[],
+  targetText: string
+): StudyToken[] {
+  const replacements = new Map<number, StudyToken>();
+  const consumedAuxiliaryIndexes = new Set<number>();
+
+  for (let index = 0; index < studyTokens.length; index += 1) {
+    if (consumedAuxiliaryIndexes.has(index)) {
+      continue;
+    }
+
+    const token = studyTokens[index];
+    const match = findJapaneseVerbAuxiliaryMatch(studyTokens, index, targetText);
+    if (match == null || !isJapaneseVerbMetadata(token.metadata)) {
+      continue;
+    }
+
+    replacements.set(index, {
+      ...token,
+      metadata: {
+        ...token.metadata,
+        observedSurface: match.surface,
+        observedForm: match.observedForm,
+      },
+    });
     for (const consumedIndex of match.consumedIndexes) {
       consumedAuxiliaryIndexes.add(consumedIndex);
     }
@@ -1552,7 +1694,10 @@ export function sanitizeStudyTokens(
   });
 
   return {
-    studyTokens: repairSplitJapaneseAdjectiveMetadata(studyTokens),
+    studyTokens: repairSplitJapaneseAdjectiveMetadata(
+      repairSplitJapaneseVerbMetadata(studyTokens, targetText),
+      targetText
+    ),
     droppedSections,
   };
 }

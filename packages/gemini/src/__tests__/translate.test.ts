@@ -236,7 +236,7 @@ describe("translateWithKotobaGemini", () => {
     expect(result.draft.studyTokens.length).toBeGreaterThan(0);
   });
 
-  it("retries once when the provider returns invalid JSON", async () => {
+  it("retries when the provider returns invalid JSON", async () => {
     mockGenerateContent.mockResolvedValueOnce({
       text: '{"targetLanguage":"ja","sourceLanguage":"en"',
     });
@@ -294,6 +294,75 @@ describe("translateWithKotobaGemini", () => {
     expect(result.warnings).toHaveLength(1);
     expect(result.warnings[0]).toContain(
       "Gemini: retried invalid JSON response context=initial"
+    );
+  });
+
+  it("allows a second JSON repair attempt before failing the request", async () => {
+    mockGenerateContent.mockResolvedValueOnce({
+      text: '{"targetLanguage":"ja","sourceLanguage":"en"',
+    });
+    mockGenerateContent.mockResolvedValueOnce({
+      text: '{"targetLanguage":"ja","sourceLanguage":"en","sourceText"',
+    });
+    mockGenerateContent.mockResolvedValueOnce({
+      text: JSON.stringify({
+        targetLanguage: "ja",
+        sourceLanguage: "en",
+        sourceText: "I ate sushi yesterday",
+        targetText: "昨日寿司を食べました",
+        targetTextVariants: null,
+        readingSegments: [
+          { text: "昨日", reading: "きのう" },
+          { text: "寿司", reading: "すし" },
+          { text: "を", reading: null },
+          { text: "食べました", reading: "たべました" },
+        ],
+        romanization: "kinou sushi o tabemashita",
+        translationText: "I ate sushi yesterday",
+        studyTokens: [
+          {
+            id: "5:10:食べました",
+            surface: "食べました",
+            start: 5,
+            end: 10,
+            reading: "たべました",
+            audioText: "食べました",
+            kind: "word",
+            note: {
+              partOfSpeech: "verb",
+              meaning: "ate",
+              note: "Polite past form of 食べる.",
+            },
+            metadata: {
+              language: "ja",
+              category: "morphology",
+              kind: "verb",
+              surface: "食べました",
+              lemma: "食べる",
+              verbClass: "ichidan",
+              observedForm: "polite-past",
+              confidence: "high",
+            },
+          },
+        ],
+        enrichment: sampleEnrichment,
+      }),
+    });
+    const { translateWithKotobaGemini } = await import("../index");
+
+    const result = await translateWithKotobaGemini(
+      { inputText: "I ate sushi yesterday", learningLanguage: "ja" },
+      { apiKey: "test-key" }
+    );
+
+    expect(mockGenerateContent).toHaveBeenCalledTimes(3);
+    expect(result.draft.targetText).toBe("昨日寿司を食べました");
+    expect(result.warnings).toHaveLength(2);
+    expect(result.warnings[0]).toContain(
+      "Gemini: retried invalid JSON response context=initial attempt=1"
+    );
+    expect(result.warnings[1]).toContain(
+      "Gemini: retried invalid JSON response context=initial attempt=2"
     );
   });
 
