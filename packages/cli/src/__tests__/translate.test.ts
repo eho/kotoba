@@ -531,6 +531,124 @@ describe("kotoba translate", () => {
     expect(translateWithKotobaGemini).not.toHaveBeenCalled();
   });
 
+  it("resolves Vertex AI options and project from flags", async () => {
+    const { runKotobaCli } = await import("../index");
+    const { io, stderr } = createIo({ env: {} });
+
+    const result = await runKotobaCli(
+      [
+        "translate",
+        "thanks",
+        "--to",
+        "ja",
+        "--provider",
+        "vertex_ai",
+        "--project",
+        "my-project",
+        "--location",
+        "us-central1",
+        "--api-version",
+        "v1beta",
+      ],
+      io
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(stderr.join("")).toBe("");
+    expect(translateWithKotobaGemini).toHaveBeenCalledWith(
+      expect.objectContaining({
+        inputText: "thanks",
+        learningLanguage: "ja",
+      }),
+      expect.objectContaining({
+        provider: "vertex_ai",
+        project: "my-project",
+        location: "us-central1",
+        apiVersion: "v1beta",
+      })
+    );
+  });
+
+  it("resolves Vertex AI options and project from env", async () => {
+    const { runKotobaCli } = await import("../index");
+    const { io, stderr } = createIo({
+      env: {
+        GEMINI_PROVIDER: "vertex_ai",
+        GOOGLE_CLOUD_PROJECT: "env-project",
+        GOOGLE_CLOUD_LOCATION: "europe-west1",
+        GEMINI_VERTEX_API_VERSION: "v2",
+      },
+    });
+
+    const result = await runKotobaCli(["translate", "thanks", "--to", "ja"], io);
+
+    expect(result.exitCode).toBe(0);
+    expect(stderr.join("")).toBe("");
+    expect(translateWithKotobaGemini).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        provider: "vertex_ai",
+        project: "env-project",
+        location: "europe-west1",
+        apiVersion: "v2",
+      })
+    );
+  });
+
+  it("decodes base64 service account JSON and parses googleAuthOptions", async () => {
+    const { runKotobaCli } = await import("../index");
+    const credentials = {
+      type: "service_account",
+      project_id: "my-project",
+      client_email: "my-email@gserviceaccount.com",
+      private_key: "my-private-key",
+    };
+    const base64 = Buffer.from(JSON.stringify(credentials)).toString("base64");
+
+    const { io, stderr } = createIo({
+      env: {
+        GEMINI_PROVIDER: "vertex_ai",
+        GOOGLE_CLOUD_PROJECT: "my-project",
+        GOOGLE_APPLICATION_CREDENTIALS_JSON_BASE64: base64,
+      },
+    });
+
+    const result = await runKotobaCli(["translate", "thanks", "--to", "ja"], io);
+
+    expect(result.exitCode).toBe(0);
+    expect(stderr.join("")).toBe("");
+    expect(translateWithKotobaGemini).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.objectContaining({
+        provider: "vertex_ai",
+        project: "my-project",
+        googleAuthOptions: {
+          credentials: {
+            client_email: credentials.client_email,
+            private_key: credentials.private_key,
+            project_id: credentials.project_id,
+          },
+          scopes: ["https://www.googleapis.com/auth/cloud-platform"],
+        },
+      })
+    );
+  });
+
+  it("rejects Vertex AI if GOOGLE_CLOUD_PROJECT is missing", async () => {
+    const { runKotobaCli } = await import("../index");
+    const { io, stderr } = createIo({
+      env: {
+        GEMINI_PROVIDER: "vertex_ai",
+      },
+    });
+
+    const result = await runKotobaCli(["translate", "thanks", "--to", "ja"], io);
+
+    expect(result.exitCode).toBe(1);
+    expect(stderr.join("")).toContain("Google Cloud project is required");
+    expect(translateWithKotobaGemini).not.toHaveBeenCalled();
+  });
+
   it("returns exit code 2 for provider failures", async () => {
     translateWithKotobaGemini.mockRejectedValueOnce(new Error("fetch failed"));
     const { runKotobaCli } = await import("../index");
